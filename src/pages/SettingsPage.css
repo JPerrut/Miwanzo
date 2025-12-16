@@ -1,0 +1,90 @@
+.settings-page {
+  padding: 20px;
+}
+
+.settings-content {
+  background-color: var(--bg-primary);
+  border-radius: 8px;
+  padding: 20px;
+  max-width: 800px;
+}
+
+.settings-section {
+  margin-bottom: 30px;
+}
+
+.settings-section h3 {
+  color: var(--text-primary);
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 1.3rem;
+}
+
+.settings-item {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-item label {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.settings-item select,
+.settings-item input {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  max-width: 300px;
+}
+
+.settings-item select:focus,
+.settings-item input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.theme-selector {
+  display: flex;
+  gap: 15px;
+  margin-top: 10px;
+}
+
+.theme-option {
+  flex: 1;
+  max-width: 200px;
+  padding: 15px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.theme-option:hover {
+  border-color: var(--accent-color);
+  transform: translateY(-2px);
+}
+
+.theme-option.active {
+  border-color: var(--accent-color);
+  background-color: var(--selected-bg);
+}
+
+.theme-option h4 {
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.theme-option p {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
