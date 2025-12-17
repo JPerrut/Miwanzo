@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEnvelope, faLock, faGoogle } from '@fortawesome/free-solid-svg-icons';
+import { faEnvelope, faLock } from '@fortawesome/free-solid-svg-icons';
+import GoogleIcon from '../assets/icons/GoogleIcon';
 import { authService } from '../services/auth';
+import { googleAuthService } from '../services/googleAuth';
 import './AuthPages.css';
 
 const LoginPage = () => {
@@ -14,7 +16,31 @@ const LoginPage = () => {
     rememberMe: false,
   });
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    // Verificar se há token do Google na URL
+    const checkGoogleCallback = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      
+      if (token) {
+        setGoogleLoading(true);
+        const result = await googleAuthService.handleGoogleCallback();
+        
+        if (result.success) {
+          const from = location.state?.from?.pathname || '/';
+          navigate(from, { replace: true });
+        } else {
+          setError(result.error);
+        }
+        setGoogleLoading(false);
+      }
+    };
+
+    checkGoogleCallback();
+  }, [navigate, location]);
 
   useEffect(() => {
     // Se já estiver logado, redirecionar para home
@@ -45,8 +71,6 @@ const LoginPage = () => {
 
       if (response.success) {
         authService.saveAuthData(response.token, response.user);
-        
-        // Redirecionar para a página que tentou acessar ou home
         const from = location.state?.from?.pathname || '/';
         navigate(from, { replace: true });
       }
@@ -58,8 +82,8 @@ const LoginPage = () => {
   };
 
   const handleGoogleLogin = () => {
-    // Implementar login com Google
-    console.log('Login com Google');
+    setGoogleLoading(true);
+    googleAuthService.startGoogleLogin();
   };
 
   return (
@@ -130,7 +154,7 @@ const LoginPage = () => {
           <button 
             type="submit" 
             className="auth-button primary"
-            disabled={loading}
+            disabled={loading || googleLoading}
           >
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
@@ -143,10 +167,10 @@ const LoginPage = () => {
             type="button"
             className="auth-button google"
             onClick={handleGoogleLogin}
-            disabled={loading}
+            disabled={loading || googleLoading}
           >
-            <FontAwesomeIcon icon={faGoogle} />
-            <span>Continuar com Google</span>
+            <GoogleIcon size={20} />
+            <span>{googleLoading ? 'Processando...' : 'Continuar com Google'}</span>
           </button>
 
           <div className="auth-footer">

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEnvelope, faLock, faUser, faGoogle } from '@fortawesome/free-solid-svg-icons';
+import { faEnvelope, faLock, faUser } from '@fortawesome/free-solid-svg-icons';
 import { authService } from '../services/auth';
 import './AuthPages.css';
+import GoogleIcon from '../assets/icons/GoogleIcon';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
@@ -12,7 +13,6 @@ const RegisterPage = () => {
     username: '',
     password: '',
     confirmPassword: '',
-    full_name: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -57,7 +57,6 @@ const RegisterPage = () => {
         username: formData.username,
         password: formData.password,
         confirmPassword: formData.confirmPassword,
-        full_name: formData.full_name || formData.username,
       });
 
       if (response.success) {
@@ -136,22 +135,6 @@ const RegisterPage = () => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="full_name">
-              <FontAwesomeIcon icon={faUser} />
-              Nome completo (opcional)
-            </label>
-            <input
-              type="text"
-              id="full_name"
-              name="full_name"
-              value={formData.full_name}
-              onChange={handleChange}
-              placeholder="Seu nome completo"
-              disabled={loading}
-            />
-          </div>
-
-          <div className="form-group">
             <label htmlFor="password">
               <FontAwesomeIcon icon={faLock} />
               Senha
@@ -203,7 +186,7 @@ const RegisterPage = () => {
             onClick={handleGoogleRegister}
             disabled={loading}
           >
-            <FontAwesomeIcon icon={faGoogle} />
+            <GoogleIcon />
             <span>Continuar com Google</span>
           </button>
 

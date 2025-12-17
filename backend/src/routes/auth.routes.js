@@ -12,4 +12,9 @@ router.get('/verify', authController.verifyToken);
 // Rotas protegidas
 router.get('/profile', authMiddleware.verifyToken, authController.getProfile);
 
+// Rotas do Google OAuth
+router.get('/google', authController.googleAuth);
+router.get('/google/callback', authController.googleCallback);
+router.post('/google/verify', authController.verifyGoogleAuth);
+
 module.exports = router;

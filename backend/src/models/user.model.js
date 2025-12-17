@@ -3,17 +3,17 @@ const bcrypt = require('bcrypt');
 
 const User = {
   async create(userData) {
-    const { email, username, password, full_name, avatar_url, google_id } = userData;
+    const { email, username, password, avatar_url, google_id } = userData;
     
     const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
     
     const query = `
-      INSERT INTO users (email, username, password_hash, full_name, avatar_url, google_id)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, email, username, full_name, avatar_url, created_at
+      INSERT INTO users (email, username, password_hash, avatar_url, google_id)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id, email, username, avatar_url, created_at
     `;
     
-    const values = [email, username, hashedPassword, full_name, avatar_url, google_id];
+    const values = [email, username, hashedPassword, avatar_url, google_id];
     const result = await db.query(query, values);
     return result.rows[0];
   },
@@ -37,7 +37,7 @@ const User = {
   },
 
   async findById(id) {
-    const query = 'SELECT id, email, username, full_name, avatar_url, created_at FROM users WHERE id = $1';
+    const query = 'SELECT id, email, username, avatar_url, created_at FROM users WHERE id = $1';
     const result = await db.query(query, [id]);
     return result.rows[0];
   },
@@ -54,7 +54,7 @@ const User = {
 
   async findSessionByToken(token) {
     const query = `
-      SELECT us.*, u.email, u.username, u.full_name, u.avatar_url
+      SELECT us.*, u.email, u.username, u.avatar_url
       FROM user_sessions us
       JOIN users u ON us.user_id = u.id
       WHERE us.session_token = $1 AND us.expires_at > NOW()

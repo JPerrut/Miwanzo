@@ -1,10 +1,12 @@
 const User = require('../models/user.model');
 const { generateToken, verifyPassword, calculateExpiry } = require('../utils/auth.utils');
+const passport = require('../config/passport');
+
 
 const authController = {
   async register(req, res) {
     try {
-      const { email, username, password, confirmPassword, full_name } = req.body;
+      const { email, username, password, confirmPassword } = req.body;
 
       // Validações básicas
       if (password !== confirmPassword) {
@@ -28,7 +30,6 @@ const authController = {
         email,
         username,
         password,
-        full_name: full_name || username,
       };
 
       const user = await User.create(userData);
@@ -47,7 +48,6 @@ const authController = {
           id: user.id,
           email: user.email,
           username: user.username,
-          full_name: user.full_name,
           avatar_url: user.avatar_url,
         },
       });
@@ -87,7 +87,6 @@ const authController = {
           id: user.id,
           email: user.email,
           username: user.username,
-          full_name: user.full_name,
           avatar_url: user.avatar_url,
         },
       });
@@ -146,12 +145,79 @@ const authController = {
           id: user.id,
           email: user.email,
           username: user.username,
-          full_name: user.full_name,
           avatar_url: user.avatar_url,
         },
       });
     } catch (error) {
       res.status(401).json({ valid: false });
+    }
+  },
+
+  // Iniciar autenticação com Google
+  googleAuth(req, res, next) {
+    passport.authenticate('google', {
+      scope: ['profile', 'email']
+    })(req, res, next);
+  },
+
+  // Callback do Google
+  googleCallback(req, res, next) {
+    passport.authenticate('google', async (err, user) => {
+      if (err || !user) {
+        return res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
+      }
+
+      try {
+        // Gerar token JWT
+        const token = generateToken(user.id);
+        const expiresAt = calculateExpiry();
+
+        // Criar sessão
+        await User.createSession(user.id, token, expiresAt);
+
+        // Redirecionar para frontend com token
+        res.redirect(`${process.env.FRONTEND_URL}/auth/google/callback?token=${token}&user=${JSON.stringify({
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          avatar_url: user.avatar_url,
+        })}`);
+      } catch (error) {
+        console.error('Erro no callback do Google:', error);
+        res.redirect(`${process.env.FRONTEND_URL}/login?error=server_error`);
+      }
+    })(req, res, next);
+  },
+
+  // Verificar token do Google (para frontend)
+  async verifyGoogleAuth(req, res) {
+    try {
+      const { token } = req.body;
+      
+      if (!token) {
+        return res.status(400).json({ error: 'Token não fornecido' });
+      }
+
+      const session = await User.findSessionByToken(token);
+      if (!session) {
+        return res.status(401).json({ error: 'Token inválido' });
+      }
+
+      const user = await User.findById(session.user_id);
+      
+      res.json({
+        success: true,
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          avatar_url: user.avatar_url,
+        },
+      });
+    } catch (error) {
+      console.error('Erro na verificação do Google:', error);
+      res.status(500).json({ error: 'Erro interno do servidor' });
     }
   },
 };

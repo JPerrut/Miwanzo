@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { 
+  createBrowserRouter,
+  RouterProvider,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+  useLocation 
+} from 'react-router-dom';
 import Sidebar from './components/Sidebar/Sidebar';
 import UserMenu from './components/UserMenu/UserMenu';
 import HomePage from './pages/HomePage';
@@ -7,6 +15,7 @@ import TasksPage from './pages/TasksPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import GoogleCallbackPage from './pages/GoogleCallbackPage';
 import NotFoundPage from './pages/NotFoundPage';
 import { authService } from './services/auth';
 import './App.css';
@@ -15,6 +24,7 @@ import './App.css';
 const ProtectedRoute = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -50,6 +60,7 @@ const ProtectedRoute = ({ children }) => {
 // Layout principal com sidebar
 const MainLayout = ({ children }) => {
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
+  const location = useLocation();
 
   const handleSidebarMouseEnter = () => {
     setSidebarExpanded(true);
@@ -58,6 +69,13 @@ const MainLayout = ({ children }) => {
   const handleSidebarMouseLeave = () => {
     setSidebarExpanded(false);
   };
+
+  // Não mostrar sidebar em páginas de login/register
+  if (location.pathname === '/login' || 
+      location.pathname === '/register' ||
+      location.pathname === '/google-callback') {
+    return children;
+  }
 
   return (
     <div className="app">
@@ -70,7 +88,6 @@ const MainLayout = ({ children }) => {
       <main className={`main-content ${sidebarExpanded ? 'sidebar-expanded' : 'sidebar-collapsed'}`}>
         <header className="main-header">
           <div className="header-left">
-            {/* Espaço para breadcrumbs ou título da página */}
           </div>
           <div className="header-right">
             <UserMenu />
@@ -85,52 +102,65 @@ const MainLayout = ({ children }) => {
   );
 };
 
-function App() {
+// Componente principal que usa as rotas
+const AppRoutes = () => {
   return (
-    <Router>
-      <Routes>
-        {/* Rotas públicas */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        
-        {/* Rotas protegidas */}
-        <Route path="/" element={
-          <ProtectedRoute>
-            <MainLayout>
-              <HomePage />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/tasks" element={
-          <ProtectedRoute>
-            <MainLayout>
-              <TasksPage />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/settings" element={
-          <ProtectedRoute>
-            <MainLayout>
-              <SettingsPage />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/settings/profile" element={
-          <ProtectedRoute>
-            <MainLayout>
-              <SettingsPage />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-        
-        {/* Rota 404 */}
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
-    </Router>
+    <Routes>
+      {/* Rotas públicas */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/google-callback" element={<GoogleCallbackPage />} />
+      
+      {/* Rotas protegidas */}
+      <Route path="/" element={
+        <ProtectedRoute>
+          <HomePage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/tasks" element={
+        <ProtectedRoute>
+          <TasksPage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/settings" element={
+        <ProtectedRoute>
+          <SettingsPage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/settings/profile" element={
+        <ProtectedRoute>
+          <SettingsPage />
+        </ProtectedRoute>
+      } />
+      
+      {/* Rota 404 */}
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
   );
-}
+};
+
+const App = () => {
+  return (
+    <MainLayout>
+      <AppRoutes />
+    </MainLayout>
+  );
+};
+
+export const router = createBrowserRouter([
+  {
+    path: '/*',
+    element: <App />,
+  }
+], {
+  future: {
+    v7_startTransition: true,
+    v7_relativeSplatPath: true,
+    v7_fetcherPersist: true,
+  }
+});
 
 export default App;
