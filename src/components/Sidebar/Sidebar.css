@@ -194,3 +194,177 @@
 .submenu-title {
   padding-left: 8px;
 }
+
+/* Áreas de Trabalho na Sidebar */
+.work-areas-section {
+  margin-top: auto; 
+  margin-bottom: 10px;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.work-areas-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 0 20px; 
+}
+
+.work-areas-icon {
+  color: rgba(255, 255, 255, 0.7); 
+  font-size: 16px;
+  width: 24px; 
+  height: 24px; 
+  display: flex;
+  align-items: center;
+  justify-content: center; 
+}
+
+.work-areas-title {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.work-areas-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 8px 20px;
+}
+
+.work-areas-loading {
+  padding: 10px 20px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+}
+
+.no-work-areas {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+}
+
+.no-work-areas svg {
+  font-size: 14px;
+  width: 24px; 
+  display: flex;
+  align-items: center;
+  justify-content: center; 
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.work-areas-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.work-areas-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.work-areas-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.work-areas-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.work-area-item {
+  margin: 2px 0;
+}
+
+.work-area-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 20px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.work-area-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white; 
+}
+
+.work-area-link.active {
+  background-color: rgba(59, 130, 246, 0.2); 
+  color: white;
+  font-weight: 500;
+}
+
+.work-area-icon {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7); 
+  width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center; 
+}
+
+.work-area-link:hover .work-area-icon,
+.work-area-link.active .work-area-icon {
+  color: inherit;
+}
+
+.work-area-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Ajustes para sidebar recolhida */
+.sidebar.collapsed .work-areas-section {
+  display: none;
+}
+
+.collapsed-work-areas {
+  padding: 12px 0;
+  text-align: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 10px;
+}
+
+.collapsed-work-areas .menu-icon {
+  margin: 0 auto;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 18px;
+}
+
+/* Estilo para quando o sidebar está recolhido */
+.sidebar.collapsed .menu-link {
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.sidebar.collapsed .menu-title {
+  display: none;
+}
+
+.sidebar.collapsed .chevron-icon {
+  display: none;
+}
+
+.sidebar.collapsed .submenu {
+  display: none;
+}

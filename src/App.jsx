@@ -11,6 +11,7 @@ import {
 import Sidebar from './components/Sidebar/Sidebar';
 import UserMenu from './components/UserMenu/UserMenu';
 import HomePage from './pages/HomePage';
+import WorkAreaPage from './pages/WorkAreaPage'; // Nova página
 import TasksPage from './pages/TasksPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
@@ -118,6 +119,14 @@ const AppRoutes = () => {
         </ProtectedRoute>
       } />
       
+      {/* Nova rota para áreas de trabalho */}
+      <Route path="/workarea/:workAreaId" element={
+        <ProtectedRoute>
+          <WorkAreaPage />
+        </ProtectedRoute>
+      } />
+      
+      {/* Rotas existentes mantidas */}
       <Route path="/tasks" element={
         <ProtectedRoute>
           <TasksPage />
