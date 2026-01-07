@@ -2,30 +2,25 @@ const User = require('../models/user.model');
 const { generateToken, verifyPassword, calculateExpiry } = require('../utils/auth.utils');
 const passport = require('../config/passport');
 
-
 const authController = {
   async register(req, res) {
     try {
       const { email, username, password, confirmPassword } = req.body;
 
-      // Validações básicas
       if (password !== confirmPassword) {
         return res.status(400).json({ error: 'As senhas não coincidem' });
       }
 
-      // Verificar se email já existe
       const existingEmail = await User.findByEmail(email);
       if (existingEmail) {
         return res.status(400).json({ error: 'Email já cadastrado' });
       }
 
-      // Verificar se username já existe
       const existingUsername = await User.findByUsername(username);
       if (existingUsername) {
         return res.status(400).json({ error: 'Nome de usuário já em uso' });
       }
 
-      // Criar usuário
       const userData = {
         email,
         username,
@@ -34,11 +29,9 @@ const authController = {
 
       const user = await User.create(userData);
 
-      // Gerar token
       const token = generateToken(user.id);
       const expiresAt = calculateExpiry();
 
-      // Criar sessão
       await User.createSession(user.id, token, expiresAt);
 
       res.status(201).json({
@@ -61,23 +54,19 @@ const authController = {
     try {
       const { email, password, rememberMe } = req.body;
 
-      // Buscar usuário
       const user = await User.findByEmail(email);
       if (!user) {
         return res.status(401).json({ error: 'Email ou senha incorretos' });
       }
 
-      // Verificar senha
       const isValidPassword = await verifyPassword(password, user.password_hash);
       if (!isValidPassword) {
         return res.status(401).json({ error: 'Email ou senha incorretos' });
       }
 
-      // Gerar token
       const token = generateToken(user.id);
       const expiresAt = calculateExpiry();
 
-      // Criar sessão
       await User.createSession(user.id, token, expiresAt);
 
       res.json({
@@ -153,14 +142,12 @@ const authController = {
     }
   },
 
-  // Iniciar autenticação com Google
   googleAuth(req, res, next) {
     passport.authenticate('google', {
       scope: ['profile', 'email']
     })(req, res, next);
   },
 
-  // Callback do Google
   googleCallback(req, res, next) {
     passport.authenticate('google', async (err, user) => {
       if (err || !user) {
@@ -168,14 +155,11 @@ const authController = {
       }
 
       try {
-        // Gerar token JWT
         const token = generateToken(user.id);
         const expiresAt = calculateExpiry();
 
-        // Criar sessão
         await User.createSession(user.id, token, expiresAt);
 
-        // Redirecionar para frontend com token
         res.redirect(`${process.env.FRONTEND_URL}/auth/google/callback?token=${token}&user=${JSON.stringify({
           id: user.id,
           email: user.email,
@@ -189,7 +173,6 @@ const authController = {
     })(req, res, next);
   },
 
-  // Verificar token do Google (para frontend)
   async verifyGoogleAuth(req, res) {
     try {
       const { token } = req.body;

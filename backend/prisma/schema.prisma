@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String         @id @default(uuid())
+  email           String         @unique
+  name            String?        
+  username        String?        
+  password_hash   String?        
+  avatar          String?        
+  googleId        String?        @unique @map("google_id")
+  emailVerified   Boolean        @default(false)
+  
+  // Relações
+  workAreas       WorkArea[]
+  tasks           Task[]
+  userSessions    UserSession[]  // Relação com UserSession
+  
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  
+  @@map("users")
+}
+
+// Modelo atualizado com relação correta
+model UserSession {
+  id              String         @id @default(uuid())
+  userId          String         @map("user_id")
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token           String         @unique
+  expiresAt       DateTime       @map("expires_at")
+  deviceInfo      String?        @map("device_info")
+  ipAddress       String?        @map("ip_address")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  
+  @@map("user_sessions")  // Mantém o nome original da tabela
+}
+
+model WorkArea {
+  id              String         @id @default(uuid())
+  name            String
+  description     String?
+  color           String?        @default("#3b82f6")
+  orderIndex      Int            @default(0)
+  isDefault       Boolean        @default(false)
+  
+  // Relações
+  userId          String
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sections        Section[]
+  
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  
+  @@map("work_areas")
+}
+
+model Section {
+  id              String         @id @default(uuid())
+  name            String
+  description     String?
+  orderIndex      Int            @default(0)
+  
+  // Relações
+  workAreaId      String
+  workArea        WorkArea       @relation(fields: [workAreaId], references: [id], onDelete: Cascade)
+  tasks           Task[]
+  
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  
+  @@map("sections")
+}
+
+model Task {
+  id              String         @id @default(uuid())
+  title           String
+  description     String?
+  status          TaskStatus     @default(PENDING)
+  priority        Priority       @default(MEDIUM)
+  dueDate         DateTime?
+  completedAt     DateTime?
+  orderIndex      Int            @default(0)
+  
+  // Relações
+  userId          String
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sectionId       String?
+  section         Section?       @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  
+  @@map("tasks")
+}
+
+// Enums
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}

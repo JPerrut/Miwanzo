@@ -5,7 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 
 exports.createTask = async (req, res) => {
   try {
-    const { title, description, sectionId } = req.body;
+    const { title, description, section_id } = req.body;
     const userId = req.userId;
     
     if (!title || !title.trim()) {
@@ -15,15 +15,14 @@ exports.createTask = async (req, res) => {
       });
     }
     
-    if (!sectionId) {
+    if (!section_id) {
       return res.status(400).json({
         success: false,
         message: 'ID da seção é obrigatório'
       });
     }
     
-    // Verificar se a seção existe
-    const section = await Section.findById(sectionId);
+    const section = await Section.findById(section_id);
     if (!section) {
       return res.status(404).json({
         success: false,
@@ -31,7 +30,6 @@ exports.createTask = async (req, res) => {
       });
     }
     
-    // Verificar se a área de trabalho da seção pertence ao usuário
     const workArea = await WorkArea.findById(section.work_area_id);
     if (!workArea || String(workArea.user_id) !== String(userId)) {
       return res.status(403).json({
@@ -44,8 +42,8 @@ exports.createTask = async (req, res) => {
       id: uuidv4(),
       title: title.trim(),
       description: description ? description.trim() : '',
-      sectionId,
-      userId,
+      section_id,
+      user_id: userId,
       completed: false
     };
     
@@ -67,18 +65,11 @@ exports.createTask = async (req, res) => {
 
 exports.getTasksBySection = async (req, res) => {
   try {
-    const { sectionId } = req.query;
+    const { section_id } = req.query;
     const userId = req.userId;
     
-    if (!sectionId) {
-      return res.status(400).json({
-        success: false,
-        message: 'ID da seção é obrigatório'
-      });
-    }
+    const section = await Section.findById(section_id);
     
-    // Verificar se a seção existe
-    const section = await Section.findById(sectionId);
     if (!section) {
       return res.status(404).json({
         success: false,
@@ -86,16 +77,30 @@ exports.getTasksBySection = async (req, res) => {
       });
     }
     
-    // Verificar se a área de trabalho da seção pertence ao usuário
-    const workArea = await WorkArea.findById(section.work_area_id);
-    if (!workArea || String(workArea.user_id) !== String(userId)) {
+    const workAreaId = section.work_area_id;
+    if (!workAreaId) {
+      return res.status(500).json({
+        success: false,
+        message: 'Erro interno - work_area_id não encontrado'
+      });
+    }
+    
+    const workArea = await WorkArea.findById(workAreaId);
+    if (!workArea) {
+      return res.status(404).json({
+        success: false,
+        message: 'Área de trabalho não encontrada'
+      });
+    }
+    
+    if (String(workArea.user_id) !== String(userId)) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado'
       });
     }
     
-    const tasks = await Task.findBySectionId(sectionId);
+    const tasks = await Task.findBySectionId(section_id);
     
     res.status(200).json({
       success: true,

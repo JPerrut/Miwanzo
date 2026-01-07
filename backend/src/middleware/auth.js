@@ -1,16 +1,12 @@
-// backend/src/middlewares/auth.js
 const jwt = require('jsonwebtoken');
-const User = require('../models/user.model');
 
 const authMiddleware = async (req, res, next) => {
   try {
-    console.log('🔐 Middleware de autenticação chamado para:', req.method, req.path);
-    
-    // Tentar obter o token do header Authorization
+    console.log('Auth Middleware - Headers:', req.headers.authorization);
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log('❌ Token não fornecido ou inválido');
+      console.log('Auth Middleware - Token não fornecido');
       return res.status(401).json({
         success: false,
         message: 'Token não fornecido ou inválido'
@@ -18,21 +14,19 @@ const authMiddleware = async (req, res, next) => {
     }
     
     const token = authHeader.split(' ')[1];
+    console.log('Auth Middleware - Token recebido:', token.substring(0, 20) + '...');
     
     try {
-      // Verificar o token JWT
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      console.log('✅ Token JWT válido, userId:', decoded.userId || decoded.id);
+      console.log('Auth Middleware - Token decodificado:', decoded);
       
-      // Adicionar o usuário ao request
       req.userId = decoded.userId || decoded.id;
       req.user = { id: req.userId };
-      console.log('✅ userId adicionado ao request:', req.userId);
       
+      console.log('Auth Middleware - userId definido:', req.userId);
       next();
     } catch (error) {
-      console.error('❌ Erro na verificação do token:', error.message);
-      
+      console.log('Auth Middleware - Erro ao verificar token:', error.message);
       if (error.name === 'TokenExpiredError') {
         return res.status(401).json({
           success: false,
@@ -53,7 +47,7 @@ const authMiddleware = async (req, res, next) => {
       });
     }
   } catch (error) {
-    console.error('❌ Erro no middleware de autenticação:', error);
+    console.error('Erro no middleware de autenticação:', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'

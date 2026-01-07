@@ -7,28 +7,30 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "dev:debug": "nodemon --inspect src/server.js",
+    "db:setup": "node scripts/setup-database.js",
+    "db:reset": "node scripts/reset-database.js",
+    "db:generate": "npx prisma generate",
+    "db:push": "npx prisma db push",
+    "db:studio": "npx prisma studio",
     "db:migrate": "node src/db/migrate.js",
     "db:seed": "node src/db/seed.js",
-    "db:reset": "node src/db/reset.js",
     "test": "jest --detectOpenHandles",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
     "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix",
-    "format": "prettier --write \"src/**/*.js\""
+    "lint:fix": "eslint src/ --fix"
   },
   "keywords": [
     "task-manager",
     "productivity",
     "nodejs",
     "express",
-    "postgresql"
+    "postgresql",
+    "prisma"
   ],
   "author": "Miwanzo Team",
   "license": "MIT",
   "dependencies": {
-    "@fortawesome/free-brands-svg-icons": "^7.1.0",
-    "axios": "^1.13.2",
+    "@prisma/client": "^5.9.0",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -49,6 +51,7 @@
     "eslint-plugin-node": "^11.1.0",
     "jest": "^29.7.0",
     "nodemon": "^3.0.2",
+    "prisma": "^5.9.0",
     "prettier": "^3.2.4",
     "supertest": "^6.3.3"
   },
@@ -56,21 +59,14 @@
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
   },
+  "prisma": {
+    "schema": "prisma/schema.prisma"
+  },
   "jest": {
     "testEnvironment": "node",
     "coveragePathIgnorePatterns": [
       "/node_modules/",
       "/tests/"
-    ],
-    "testMatch": [
-      "**/tests/**/*.test.js"
     ]
-  },
-  "prettier": {
-    "semi": true,
-    "trailingComma": "es5",
-    "singleQuote": true,
-    "printWidth": 100,
-    "tabWidth": 2
   }
 }

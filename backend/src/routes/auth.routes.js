@@ -1,7 +1,8 @@
+// auth.routes.js
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
-const authMiddleware = require('../middleware/auth.middleware');
+const authMiddleware = require('../middleware/auth');
 
 // Rotas públicas
 router.post('/register', authController.register);
@@ -10,7 +11,7 @@ router.post('/logout', authController.logout);
 router.get('/verify', authController.verifyToken);
 
 // Rotas protegidas
-router.get('/profile', authMiddleware.verifyToken, authController.getProfile);
+router.get('/profile', authMiddleware, authController.getProfile);
 
 // Rotas do Google OAuth
 router.get('/google', authController.googleAuth);

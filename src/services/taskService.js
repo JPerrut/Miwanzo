@@ -3,7 +3,7 @@ import api from './api';
 export const taskService = {
   async getTasksBySection(sectionId) {
     try {
-      const response = await api.get(`/tasks?sectionId=${sectionId}`);
+      const response = await api.get(`/tasks?section_id=${sectionId}`);
       return response.data.data;
     } catch (error) {
       console.error('Error fetching tasks:', error);

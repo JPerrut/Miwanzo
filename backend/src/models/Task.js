@@ -1,50 +1,262 @@
 const db = require('../config/database');
+const { v4: uuidv4 } = require('uuid');
 
 const Task = {
-  create: async (taskData) => {
-    const { id, title, description, sectionId, userId } = taskData;
+  async create(taskData) {
+    const { title, description, status, priority, due_date, completed_at, order_index, user_id, section_id } = taskData;
+    const id = uuidv4();
+    const now = new Date().toISOString();
+    
     const query = `
-      INSERT INTO tasks (id, title, description, section_id, user_id) 
-      VALUES ($1, $2, $3, $4, $5) 
+      INSERT INTO tasks (
+        id, title, description, status, priority, due_date, completed_at,
+        order_index, user_id, section_id, created_at, updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
     `;
-    const result = await db.query(query, [id, title, description, sectionId, userId]);
+    
+    const values = [
+      id,
+      title,
+      description || null,
+      status || 'PENDING',
+      priority || 'MEDIUM',
+      due_date || null,
+      completed_at || null,
+      order_index || 0,
+      user_id,
+      section_id || null,
+      now,
+      now
+    ];
+    
+    const result = await db.query(query, values);
     return result.rows[0];
   },
 
-  findBySectionId: async (sectionId) => {
-    const query = 'SELECT * FROM tasks WHERE section_id = $1 ORDER BY created_at ASC';
-    const result = await db.query(query, [sectionId]);
+  async findByUserId(user_id) {
+    const query = `
+      SELECT * FROM tasks 
+      WHERE user_id = $1 
+      ORDER BY order_index ASC, created_at ASC
+    `;
+    const result = await db.query(query, [user_id]);
     return result.rows;
   },
 
-  findById: async (id) => {
-    const query = 'SELECT * FROM tasks WHERE id = $1';
-    const result = await db.query(query, [id]);
+  async findBySectionId(section_id) {
+    const query = `
+      SELECT * FROM tasks 
+      WHERE section_id = $1 
+      ORDER BY order_index ASC, created_at ASC
+    `;
+    const result = await db.query(query, [section_id]);
+    return result.rows;
+  },
+
+  async findById(id, user_id = null) {
+    let query = 'SELECT * FROM tasks WHERE id = $1';
+    const values = [id];
+    
+    if (user_id) {
+      query += ' AND user_id = $2';
+      values.push(user_id);
+    }
+    
+    const result = await db.query(query, values);
     return result.rows[0];
   },
 
-  update: async (id, taskData) => {
-    const { title, description, completed } = taskData;
+  async update(id, updates, user_id = null) {
+    const fields = ['updated_at = NOW()'];
+    const values = [];
+    let index = 1;
+
+    if (updates.title !== undefined) {
+      fields.push(`title = $${index++}`);
+      values.push(updates.title);
+    }
+    if (updates.description !== undefined) {
+      fields.push(`description = $${index++}`);
+      values.push(updates.description);
+    }
+    if (updates.status !== undefined) {
+      fields.push(`status = $${index++}`);
+      values.push(updates.status);
+    }
+    if (updates.priority !== undefined) {
+      fields.push(`priority = $${index++}`);
+      values.push(updates.priority);
+    }
+    if (updates.due_date !== undefined) {
+      fields.push(`due_date = $${index++}`);
+      values.push(updates.due_date);
+    }
+    if (updates.completed_at !== undefined) {
+      fields.push(`completed_at = $${index++}`);
+      values.push(updates.completed_at);
+    }
+    if (updates.order_index !== undefined) {
+      fields.push(`order_index = $${index++}`);
+      values.push(updates.order_index);
+    }
+    if (updates.section_id !== undefined) {
+      fields.push(`section_id = $${index++}`);
+      values.push(updates.section_id);
+    }
+
+    values.push(id);
+    let query = `UPDATE tasks SET ${fields.join(', ')} WHERE id = $${index}`;
+    
+    if (user_id) {
+      query += ` AND user_id = $${index + 1}`;
+      values.push(user_id);
+    }
+    
+    query += ' RETURNING *';
+    const result = await db.query(query, values);
+    return result.rows[0];
+  },
+
+  async delete(id, user_id = null) {
+    let query = 'DELETE FROM tasks WHERE id = $1';
+    const values = [id];
+    
+    if (user_id) {
+      query += ' AND user_id = $2';
+      values.push(user_id);
+    }
+    
+    await db.query(query, values);
+  },
+
+  async completeTask(id, user_id) {
+    const result = await db.query(
+      `UPDATE tasks 
+       SET status = 'COMPLETED', completed_at = NOW(), updated_at = NOW() 
+       WHERE id = $1 AND user_id = $2 
+       RETURNING *`,
+      [id, user_id]
+    );
+    return result.rows[0];
+  },
+
+  async reorder(section_id, orderMap, user_id = null) {
+    const client = await db.getClient();
+    
+    try {
+      await client.query('BEGIN');
+      
+      for (const [id, order_index] of Object.entries(orderMap)) {
+        let query = 'UPDATE tasks SET order_index = $1 WHERE id = $2 AND section_id = $3';
+        const values = [order_index, id, section_id];
+        
+        if (user_id) {
+          query += ' AND user_id = $4';
+          values.push(user_id);
+        }
+        
+        await client.query(query, values);
+      }
+      
+      await client.query('COMMIT');
+      return true;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
+
+  async findByStatus(user_id, status) {
     const query = `
-      UPDATE tasks 
-      SET title = $1, description = $2, completed = $3, updated_at = CURRENT_TIMESTAMP 
-      WHERE id = $4
+      SELECT * FROM tasks 
+      WHERE user_id = $1 AND status = $2 
+      ORDER BY due_date ASC, created_at ASC
     `;
-    const result = await db.query(query, [title, description, completed, id]);
-    return result.rowCount > 0;
+    const result = await db.query(query, [user_id, status]);
+    return result.rows;
   },
 
-  delete: async (id) => {
-    const query = 'DELETE FROM tasks WHERE id = $1';
-    const result = await db.query(query, [id]);
-    return result.rowCount > 0;
+  async findByPriority(user_id, priority) {
+    const query = `
+      SELECT * FROM tasks 
+      WHERE user_id = $1 AND priority = $2 
+      ORDER BY due_date ASC, created_at ASC
+    `;
+    const result = await db.query(query, [user_id, priority]);
+    return result.rows;
   },
 
-  deleteBySectionId: async (sectionId) => {
-    const query = 'DELETE FROM tasks WHERE section_id = $1';
-    const result = await db.query(query, [sectionId]);
-    return result.rowCount > 0;
+  async findOverdue(user_id) {
+    const query = `
+      SELECT * FROM tasks 
+      WHERE user_id = $1 
+        AND due_date < NOW() 
+        AND status != 'COMPLETED'
+      ORDER BY due_date ASC
+    `;
+    const result = await db.query(query, [user_id]);
+    return result.rows;
+  },
+
+  async findDueToday(user_id) {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrowStart = new Date(todayStart);
+    tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+    
+    const query = `
+      SELECT * FROM tasks 
+      WHERE user_id = $1 
+        AND due_date >= $2 
+        AND due_date < $3
+        AND status != 'COMPLETED'
+      ORDER BY due_date ASC
+    `;
+    const result = await db.query(query, [user_id, todayStart, tomorrowStart]);
+    return result.rows;
+  },
+
+  async countByStatus(user_id) {
+    const query = `
+      SELECT status, COUNT(*) as count 
+      FROM tasks 
+      WHERE user_id = $1 
+      GROUP BY status
+    `;
+    const result = await db.query(query, [user_id]);
+    return result.rows;
+  },
+
+  async moveToSection(taskId, new_section_id, user_id) {
+    const result = await db.query(
+      `UPDATE tasks 
+       SET section_id = $1, updated_at = NOW() 
+       WHERE id = $2 AND user_id = $3 
+       RETURNING *`,
+      [new_section_id, taskId, user_id]
+    );
+    return result.rows[0];
+  },
+
+  async deleteBySectionId(section_id, user_id = null) {
+    let query = 'DELETE FROM tasks WHERE section_id = $1';
+    const values = [section_id];
+    
+    if (user_id) {
+      query += ' AND user_id = $2';
+      values.push(user_id);
+    }
+    
+    await db.query(query, values);
+  },
+
+  async deleteByUserId(user_id) {
+    const query = 'DELETE FROM tasks WHERE user_id = $1';
+    await db.query(query, [user_id]);
   }
 };
 

@@ -13,6 +13,32 @@ const HomePage = () => {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
 
+  // Função para formatar data com fallback
+  const formatDate = (dateString) => {
+    if (!dateString || dateString === 'Invalid Date') {
+      return 'Data não disponível';
+    }
+    
+    try {
+      const date = new Date(dateString);
+      
+      // Verifica se a data é válida
+      if (isNaN(date.getTime())) {
+        return 'Data inválida';
+      }
+      
+      // Sempre formata, não faz verificação de "Agora mesmo"
+      return date.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+    } catch (error) {
+      console.error('Erro ao formatar data:', dateString, error);
+      return 'Data inválida';
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -47,6 +73,11 @@ const HomePage = () => {
         userId: user.id
       });
       
+      // Adiciona timestamp local se o backend não retornou
+      if (!newWorkArea.created_at) {
+        newWorkArea.created_at = new Date().toISOString();
+      }
+      
       setWorkAreas(prev => [...prev, newWorkArea]);
       setNewWorkAreaName('');
       setShowModal(false);
@@ -78,6 +109,9 @@ const HomePage = () => {
       const updatedArea = await workAreaService.updateWorkArea(editingWorkArea.id, {
         name: newWorkAreaName
       });
+      
+      // Mantém a data de criação original
+      updatedArea.created_at = editingWorkArea.created_at || updatedArea.created_at;
       
       setWorkAreas(prev => prev.map(area => 
         area.id === editingWorkArea.id ? updatedArea : area
@@ -149,12 +183,24 @@ const HomePage = () => {
               <div className="work-area-info">
                 <div className="info-item">
                   <i className="fas fa-calendar"></i>
-                  <span>Criada em: {new Date(workArea.created_at).toLocaleDateString()}</span>
+                  <span>Criada em: {formatDate(workArea.created_at)}</span> {/* CORRIGIDO */}
                 </div>
                 {workArea.section_count !== undefined && (
                   <div className="info-item">
                     <i className="fas fa-layer-group"></i>
                     <span>Seções: {workArea.section_count}</span>
+                  </div>
+                )}
+                {workArea.color && (
+                  <div className="info-item">
+                    <i className="fas fa-palette"></i>
+                    <span>
+                      Total Tarefas: 
+                      <span 
+                        className="color-dot" 
+                        style={{ backgroundColor: workArea.color }}
+                      ></span>
+                    </span>
                   </div>
                 )}
               </div>
