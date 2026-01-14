@@ -8,6 +8,8 @@ exports.createTask = async (req, res) => {
     const { title, description, section_id } = req.body;
     const userId = req.userId;
     
+    console.log('Creating task with data:', { title, description, section_id, userId });
+    
     if (!title || !title.trim()) {
       return res.status(400).json({
         success: false,
@@ -22,6 +24,7 @@ exports.createTask = async (req, res) => {
       });
     }
     
+    // Verify section exists and belongs to user
     const section = await Section.findById(section_id);
     if (!section) {
       return res.status(404).json({
@@ -30,6 +33,7 @@ exports.createTask = async (req, res) => {
       });
     }
     
+    // Verify work area belongs to user
     const workArea = await WorkArea.findById(section.work_area_id);
     if (!workArea || String(workArea.user_id) !== String(userId)) {
       return res.status(403).json({
@@ -38,27 +42,29 @@ exports.createTask = async (req, res) => {
       });
     }
     
-    const taskData = {
-      id: uuidv4(),
+    // Create task using the Task model
+    const newTask = await Task.create({
       title: title.trim(),
-      description: description ? description.trim() : '',
-      section_id,
+      description: description ? description.trim() : null,
+      section_id: section_id,
       user_id: userId,
-      completed: false
-    };
+      status: 'PENDING',
+      priority: 'MEDIUM'
+    });
     
-    await Task.create(taskData);
+    console.log('Task created successfully:', newTask);
     
     res.status(201).json({
       success: true,
-      data: taskData
+      data: newTask
     });
   } catch (error) {
     console.error('Erro ao criar tarefa:', error);
     res.status(500).json({
       success: false,
       message: 'Erro ao criar tarefa',
-      error: error.message
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
@@ -119,7 +125,7 @@ exports.getTasksBySection = async (req, res) => {
 exports.updateTask = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, completed } = req.body;
+    const { title, description, completed, status } = req.body; // Recebe status também
     const userId = req.userId;
     
     const task = await Task.findById(id);
@@ -140,9 +146,20 @@ exports.updateTask = async (req, res) => {
     const updateData = {};
     if (title !== undefined) updateData.title = title.trim();
     if (description !== undefined) updateData.description = description.trim();
-    if (completed !== undefined) updateData.completed = completed;
     
-    const updated = await Task.update(id, updateData);
+    // Se enviar completed, converte para status
+    if (completed !== undefined) {
+      updateData.status = completed ? 'COMPLETED' : 'PENDING';
+      updateData.completed_at = completed ? new Date().toISOString() : null;
+    }
+    
+    // Se enviar status diretamente
+    if (status !== undefined) {
+      updateData.status = status;
+      updateData.completed_at = status === 'COMPLETED' ? new Date().toISOString() : null;
+    }
+    
+    const updated = await Task.update(id, updateData, userId);
     
     if (updated) {
       const updatedTask = await Task.findById(id);
@@ -170,9 +187,16 @@ exports.deleteTask = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.userId;
+
+    console.log('=== DELETE TASK REQUEST ===');
+    console.log('Task ID:', id);
+    console.log('User ID:', userId);
     
     const task = await Task.findById(id);
+    console.log('Task found:', task);
+
     if (!task) {
+      console.log('Task not found');
       return res.status(404).json({
         success: false,
         message: 'Tarefa não encontrada'
@@ -180,20 +204,25 @@ exports.deleteTask = async (req, res) => {
     }
     
     if (String(task.user_id) !== String(userId)) {
+      console.log('Access denied - user mismatch');
       return res.status(403).json({
         success: false,
         message: 'Acesso negado'
       });
     }
-    
-    const deleted = await Task.delete(id);
+
+    console.log('Attempting to delete task...');
+    const deleted = await Task.delete(id, userId);
+    console.log('Delete result:', deleted);
     
     if (deleted) {
+      console.log('Task deleted successfully');
       res.status(200).json({
         success: true,
         message: 'Tarefa deletada com sucesso'
       });
     } else {
+      console.log('Delete operation failed - no rows affected');
       res.status(400).json({
         success: false,
         message: 'Erro ao deletar tarefa'

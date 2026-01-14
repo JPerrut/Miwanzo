@@ -21,6 +21,16 @@ export const sectionService = {
     }
   },
 
+  async updateSection(id, data) {
+    try {
+      const response = await api.put(`/sections/${id}`, data);
+      return response.data.data;
+    } catch (error) {
+      console.error('Error updating section:', error);
+      throw error;
+    }
+  },
+
   async deleteSection(id) {
     try {
       const response = await api.delete(`/sections/${id}`);

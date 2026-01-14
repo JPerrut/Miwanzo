@@ -16,6 +16,14 @@
   --hover-bg: #f3f4f6;
   --selected-bg: #dbeafe;
   --selected-text: #1e40af;
+  
+  /* Cores específicas para botões */
+  --primary-color: #4a90e2;
+  --primary-hover: #357ae8;
+  --danger-color: #dc3545;
+  --danger-hover: #c82333;
+  --outline-color: #4a90e2;
+  --outline-hover-bg: #f5f9ff;
 }
 
 .dark-theme {
@@ -30,6 +38,11 @@
   --hover-bg: #374151;
   --selected-bg: #1e40af;
   --selected-text: #ffffff;
+  
+  /* Ajustes para tema escuro */
+  --primary-color: #60a5fa;
+  --primary-hover: #3b82f6;
+  --outline-hover-bg: #1e293b;
 }
 
 body {
@@ -47,18 +60,195 @@ body {
   min-height: 100vh;
 }
 
-/* Estilos para inputs e selects */
-input, select, button {
+/* ===== BOTÕES GERAIS (todas as páginas usam) ===== */
+/* .btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  gap: 8px;
+  transition: all 0.2s;
+  text-decoration: none;
   font-family: inherit;
+} */
+
+
+.btn-primary i {
+  color: white;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+.btn-primary:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.btn-outline {
+  background-color: transparent;
+  color: var(--outline-color);
+  border: 1px solid var(--outline-color);
+}
+
+.btn-outline:hover {
+  background-color: var(--outline-hover-bg);
+}
+
+.btn-text {
+  background: none;
+  color: var(--primary-color);
+  padding: 6px 12px;
+}
+
+.btn-text:hover {
+  background-color: var(--outline-hover-bg);
+}
+
+.btn-danger {
+  background-color: var(--danger-color);
+  border-color: var(--danger-color);
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: var(--danger-hover);
+  border-color: var(--danger-hover);
+}
+
+.btn-icon:hover {
+  background-color: var(--hover-bg);
+}
+
+/* ===== FORMULÁRIOS GERAIS ===== */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.form-input, .form-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.form-input:focus, .form-textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* ===== MODAL GERAL ===== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--bg-primary);
+  border-radius: 8px;
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-footer {
+  padding: 20px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* ===== LOADING GERAL ===== */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ===== ESTILOS GERAIS ===== */
+a {
+  text-decoration: none;
+  color: inherit;
 }
 
 button {
   cursor: pointer;
-}
-
-a {
-  text-decoration: none;
-  color: inherit;
+  font-family: inherit;
 }
 
 /* Scrollbar styling */

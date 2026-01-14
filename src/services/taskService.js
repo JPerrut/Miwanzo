@@ -13,10 +13,13 @@ export const taskService = {
 
   async createTask(data) {
     try {
+      console.log('Creating task with data:', data);
       const response = await api.post('/tasks', data);
+      console.log('Task created successfully:', response.data);
       return response.data.data;
     } catch (error) {
       console.error('Error creating task:', error);
+      console.error('Error response:', error.response?.data);
       throw error;
     }
   },

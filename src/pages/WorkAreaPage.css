@@ -197,6 +197,11 @@
   font-weight: 500;
   color: #333;
   word-break: break-word;
+  cursor: pointer; /* Adicione esta linha */
+  padding: 2px 4px; /* Adicione esta linha */
+  border-radius: 4px; /* Adicione esta linha */
+  transition: background-color 0.2s; /* Adicione esta linha */
+  display: inline-block; /* Adicione esta linha */
 }
 
 .task-item.completed .task-title {
@@ -431,4 +436,93 @@
     width: 95%;
     margin: 10px;
   }
+}
+
+
+/* ====== ADICIONE ESTAS REGRAS NO FINAL DO SEU ARQUIVO CSS ====== */
+
+/* Estilo para o campo de edição da tarefa */
+.task-edit-input {
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid #4a90e2;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  background-color: white;
+  color: #333;
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+
+.task-edit-input:focus {
+  border-color: #357ae8;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
+/* Container para edição da tarefa */
+.task-edit-container {
+  width: 100%;
+}
+
+/* Dicas durante a edição */
+.edit-hints {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #666;
+}
+
+.text-muted {
+  color: #666;
+}
+
+/* Melhora a visualização do título editável */
+.task-title {
+  cursor: pointer;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  display: inline-block;
+  min-height: 24px;
+  line-height: 1.4;
+}
+
+.task-title:hover {
+  background-color: #f5f9ff;
+}
+
+/* Ajuste para o layout da tarefa quando estiver editando */
+.task-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex-grow: 1;
+  min-width: 0; /* Permite que o conteúdo quebre corretamente */
+}
+
+.task-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0; /* Importante para o input não estourar */
+}
+
+/* Ajustes específicos para o modo de edição */
+.task-edit-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Para tarefas completas durante a edição */
+.task-item.completed .task-edit-input {
+  color: #333;
+  background-color: white;
+}
+
+/* Garante que o botão delete seja escondido durante a edição */
+.task-item .btn-icon:last-child {
+  flex-shrink: 0;
 }

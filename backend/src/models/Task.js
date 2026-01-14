@@ -3,14 +3,27 @@ const { v4: uuidv4 } = require('uuid');
 
 const Task = {
   async create(taskData) {
-    const { title, description, status, priority, due_date, completed_at, order_index, user_id, section_id } = taskData;
+    const { 
+      title, 
+      description, 
+      status = 'PENDING', 
+      priority = 'MEDIUM', 
+      due_date = null,
+      order_index = 0, 
+      user_id, 
+      section_id 
+    } = taskData;
+    
     const id = uuidv4();
     const now = new Date().toISOString();
     
+    // Se a tarefa já nasce como COMPLETED, preenche completed_at
+    const completed_at = status === 'COMPLETED' ? now : null;
+    
     const query = `
       INSERT INTO tasks (
-        id, title, description, status, priority, due_date, completed_at,
-        order_index, user_id, section_id, created_at, updated_at
+        id, title, description, status, priority, due_date, 
+        completed_at, order_index, user_id, section_id, created_at, updated_at
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
@@ -20,16 +33,19 @@ const Task = {
       id,
       title,
       description || null,
-      status || 'PENDING',
-      priority || 'MEDIUM',
-      due_date || null,
-      completed_at || null,
-      order_index || 0,
+      status,
+      priority,
+      due_date,
+      completed_at,
+      order_index,
       user_id,
-      section_id || null,
+      section_id,
       now,
       now
     ];
+    
+    console.log('Executing query:', query);
+    console.log('With values:', values);
     
     const result = await db.query(query, values);
     return result.rows[0];
@@ -65,6 +81,26 @@ const Task = {
     }
     
     const result = await db.query(query, values);
+    return result.rows[0];
+  },
+
+  async toggleComplete(id, user_id = null) {
+    // Primeiro pega a tarefa atual
+    const task = await this.findById(id, user_id);
+    
+    if (!task) return null;
+    
+    const newStatus = task.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
+    const completed_at = newStatus === 'COMPLETED' ? new Date().toISOString() : null;
+    
+    const result = await db.query(
+      `UPDATE tasks 
+      SET status = $1, completed_at = $2, updated_at = NOW() 
+      WHERE id = $3 ${user_id ? 'AND user_id = $4' : ''}
+      RETURNING *`,
+      user_id ? [newStatus, completed_at, id, user_id] : [newStatus, completed_at, id]
+    );
+    
     return result.rows[0];
   },
 
@@ -128,7 +164,10 @@ const Task = {
       values.push(user_id);
     }
     
-    await db.query(query, values);
+    query += ' RETURNING id'; 
+    const result = await db.query(query, values);
+    
+    return result.rowCount > 0;
   },
 
   async completeTask(id, user_id) {
