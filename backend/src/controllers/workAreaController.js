@@ -26,7 +26,7 @@ exports.createWorkArea = async (req, res) => {
 exports.getWorkAreas = async (req, res) => {
   try {
     const userId = req.userId;
-    const workAreas = await WorkArea.findByUserId(userId);
+    const workAreas = await WorkArea.findByUserIdWithMetrics(userId);
     
     res.status(200).json({
       success: true,

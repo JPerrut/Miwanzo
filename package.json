@@ -1,42 +1,25 @@
 {
-  "name": "miwanzo",
+  "name": "miwanzo-workspace",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "version": "1.0.0",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview",
-    "dev:full": "concurrently \"npm run dev\" \"cd backend && npm run dev\"",
-    "dev:db": "concurrently \"npm run dev\" \"cd backend && npm run db:setup && npm run dev\"",
-    "install:all": "npm install && cd backend && npm install",
-    "setup": "npm install && cd backend && npm install && npm run db:setup",
-    "db:setup": "cd backend && npm run db:setup",
-    "db:reset": "cd backend && npm run db:reset",
-    "db:migrate": "cd backend && npm run db:migrate",
-    "db:studio": "cd backend && npm run db:studio",
-    "reset:all": "cd backend && npm run db:reset"
-  },
-  "dependencies": {
-    "@fortawesome/free-solid-svg-icons": "^6.5.1",
-    "@fortawesome/react-fontawesome": "^0.2.0",
-    "axios": "^1.6.7",
-    "date-fns": "^3.3.1",
-    "jwt-decode": "^4.0.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.22.1"
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:db": "concurrently \"npm run dev:frontend\" \"npm run db:setup && npm run dev:backend\"",
+    "build:frontend": "npm --prefix frontend run build",
+    "lint:frontend": "npm --prefix frontend run lint",
+    "preview:frontend": "npm --prefix frontend run preview",
+    "test:backend": "npm --prefix backend run test",
+    "lint:backend": "npm --prefix backend run lint",
+    "db:setup": "npm --prefix backend run db:setup",
+    "db:reset": "npm --prefix backend run db:reset",
+    "db:migrate": "npm --prefix backend run db:migrate",
+    "db:studio": "npm --prefix backend run db:studio",
+    "install:all": "npm install && npm --prefix frontend install && npm --prefix backend install",
+    "setup": "npm install && npm --prefix frontend install && npm --prefix backend install && npm run db:setup"
   },
   "devDependencies": {
-    "@types/react": "^18.2.43",
-    "@types/react-dom": "^18.2.17",
-    "@vitejs/plugin-react": "^4.2.1",
-    "concurrently": "^8.2.2",
-    "eslint": "^8.56.0",
-    "eslint-plugin-react": "^7.33.2",
-    "eslint-plugin-react-hooks": "^4.6.0",
-    "eslint-plugin-react-refresh": "^0.4.5",
-    "vite": "^5.1.0"
+    "concurrently": "^8.2.2"
   }
 }

@@ -1,54 +1,52 @@
 const Section = require('../models/Section');
 const WorkArea = require('../models/WorkArea');
 const Task = require('../models/Task');
-const { v4: uuidv4 } = require('uuid');
 
 exports.createSection = async (req, res) => {
   try {
-    const { name } = req.body;  // ← Deve pegar do BODY, não da query
-    const { work_area_id } = req.body;  // ← Também do BODY
+    const { name, work_area_id, description, order_index } = req.body;
     const userId = req.userId;
-    
+
     if (!name || !name.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Nome da seção é obrigatório'
+        message: 'Nome da secao e obrigatorio',
       });
     }
-    
+
     if (!work_area_id) {
       return res.status(400).json({
         success: false,
-        message: 'ID da área de trabalho é obrigatório'
+        message: 'ID da area de trabalho e obrigatorio',
       });
     }
-    
-    // Verificar se a work area pertence ao usuário
+
     const workArea = await WorkArea.findById(work_area_id, userId);
     if (!workArea) {
       return res.status(404).json({
         success: false,
-        message: 'Área de trabalho não encontrada ou acesso negado'
+        message: 'Area de trabalho nao encontrada ou acesso negado',
       });
     }
-    
-    // Criar a seção (usando o modelo Section)
+
     const newSection = await Section.create({
       name: name.trim(),
       work_area_id,
-      user_id: userId
+      user_id: userId,
+      description: description ? String(description) : null,
+      order_index: Number.isInteger(order_index) ? order_index : undefined,
     });
-    
+
     res.status(201).json({
       success: true,
-      data: newSection
+      data: newSection,
     });
   } catch (error) {
-    console.error('Erro ao criar seção:', error);
+    console.error('Erro ao criar secao:', error);
     res.status(500).json({
       success: false,
-      message: 'Erro ao criar seção',
-      error: error.message
+      message: 'Erro ao criar secao',
+      error: error.message,
     });
   }
 };
@@ -57,41 +55,41 @@ exports.getSectionsByWorkArea = async (req, res) => {
   try {
     const { work_area_id } = req.query;
     const userId = req.userId;
-    
+
     if (!work_area_id) {
       return res.status(400).json({
         success: false,
-        message: 'ID da área de trabalho é obrigatório'
+        message: 'ID da area de trabalho e obrigatorio',
       });
     }
-    
+
     const workArea = await WorkArea.findById(work_area_id);
     if (!workArea) {
       return res.status(404).json({
         success: false,
-        message: 'Área de trabalho não encontrada'
+        message: 'Area de trabalho nao encontrada',
       });
     }
-    
+
     if (!workArea.user_id || String(workArea.user_id) !== String(userId)) {
       return res.status(403).json({
         success: false,
-        message: 'Acesso negado'
+        message: 'Acesso negado',
       });
     }
-    
+
     const sections = await Section.findByWorkAreaId(work_area_id);
-    
+
     res.status(200).json({
       success: true,
-      data: sections
+      data: sections,
     });
   } catch (error) {
-    console.error('Erro ao buscar seções:', error);
+    console.error('Erro ao buscar secoes:', error);
     res.status(500).json({
       success: false,
-      message: 'Erro ao buscar seções',
-      error: error.message
+      message: 'Erro ao buscar secoes',
+      error: error.message,
     });
   }
 };
@@ -100,33 +98,33 @@ exports.getSection = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.userId;
-    
+
     const section = await Section.findById(id);
-    
+
     if (!section) {
       return res.status(404).json({
         success: false,
-        message: 'Seção não encontrada'
+        message: 'Secao nao encontrada',
       });
     }
-    
+
     if (!section.user_id || String(section.user_id) !== String(userId)) {
       return res.status(403).json({
         success: false,
-        message: 'Acesso negado'
+        message: 'Acesso negado',
       });
     }
-    
+
     res.status(200).json({
       success: true,
-      data: section
+      data: section,
     });
   } catch (error) {
-    console.error('Erro ao buscar seção:', error);
+    console.error('Erro ao buscar secao:', error);
     res.status(500).json({
       success: false,
-      message: 'Erro ao buscar seção',
-      error: error.message
+      message: 'Erro ao buscar secao',
+      error: error.message,
     });
   }
 };
@@ -135,62 +133,39 @@ exports.deleteSection = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.userId;
-    
-    console.log('=== TENTANDO DELETAR SEÇÃO ===');
-    console.log('ID da seção:', id);
-    console.log('ID do usuário:', userId);
-    
-    // Primeiro verificar se a seção existe e pertence ao usuário
+
     const section = await Section.findById(id);
-    console.log('Seção encontrada:', section);
-    
     if (!section) {
-      console.log('❌ Seção não encontrada');
       return res.status(404).json({
         success: false,
-        message: 'Seção não encontrada'
+        message: 'Secao nao encontrada',
       });
     }
-    
+
     if (!section.user_id || String(section.user_id) !== String(userId)) {
-      console.log('❌ Acesso negado - user_id não corresponde');
-      console.log('user_id da seção:', section.user_id);
-      console.log('user_id do token:', userId);
       return res.status(403).json({
         success: false,
-        message: 'Acesso negado'
+        message: 'Acesso negado',
       });
     }
-    
-    console.log('✅ Permissão concedida. Deletando tarefas primeiro...');
-    
-    // Verificar se há tarefas na seção
+
     const tasks = await Task.findBySectionId(id);
-    console.log(`Tarefas na seção: ${tasks ? tasks.length : 0}`);
-    
-    // Deletar todas as tarefas da seção primeiro
     if (tasks && tasks.length > 0) {
-      console.log(`Deletando ${tasks.length} tarefas...`);
       await Task.deleteBySectionId(id);
     }
-    
-    console.log('Deletando seção...');
-    // Deletar a seção
+
     await Section.delete(id, userId);
-    
-    console.log('✅ Seção deletada com sucesso');
+
     res.status(200).json({
       success: true,
-      message: 'Seção deletada com sucesso'
+      message: 'Secao deletada com sucesso',
     });
-    
   } catch (error) {
-    console.error('❌ ERRO ao deletar seção:', error);
-    console.error('Stack trace:', error.stack);
+    console.error('Erro ao deletar secao:', error);
     res.status(500).json({
       success: false,
-      message: 'Erro ao deletar seção',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Erro ao deletar secao',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
@@ -198,50 +173,70 @@ exports.deleteSection = async (req, res) => {
 exports.updateSection = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name } = req.body;
+    const { name, description, order_index, work_area_id } = req.body;
     const userId = req.userId;
-    
-    if (!name || !name.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Nome da seção é obrigatório'
-      });
-    }
-    
+
     const section = await Section.findById(id);
     if (!section) {
       return res.status(404).json({
         success: false,
-        message: 'Seção não encontrada'
+        message: 'Secao nao encontrada',
       });
     }
-    
+
     if (!section.user_id || String(section.user_id) !== String(userId)) {
       return res.status(403).json({
         success: false,
-        message: 'Acesso negado'
+        message: 'Acesso negado',
       });
     }
-    
-    const updated = await Section.update(id, { name: name.trim() });
-    
-    if (updated) {
-      res.status(200).json({
-        success: true,
-        data: { id, name: name.trim() }
-      });
-    } else {
-      res.status(400).json({
+
+    const updates = {};
+    if (name !== undefined) {
+      if (!String(name).trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Nome da secao e obrigatorio',
+        });
+      }
+      updates.name = String(name).trim();
+    }
+    if (description !== undefined) {
+      updates.description = description === null ? null : String(description);
+    }
+    if (order_index !== undefined) {
+      updates.order_index = Number(order_index);
+    }
+    if (work_area_id !== undefined) {
+      updates.work_area_id = work_area_id;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
         success: false,
-        message: 'Erro ao atualizar seção'
+        message: 'Nenhuma alteracao informada',
       });
     }
+
+    const updated = await Section.update(id, updates, userId);
+
+    if (!updated) {
+      return res.status(400).json({
+        success: false,
+        message: 'Erro ao atualizar secao',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: updated,
+    });
   } catch (error) {
-    console.error('Erro ao atualizar seção:', error);
+    console.error('Erro ao atualizar secao:', error);
     res.status(500).json({
       success: false,
-      message: 'Erro ao atualizar seção',
-      error: error.message
+      message: 'Erro ao atualizar secao',
+      error: error.message,
     });
   }
 };

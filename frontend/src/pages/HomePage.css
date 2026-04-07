@@ -1,0 +1,208 @@
+.home-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.home-container .work-area-card,
+.home-container .empty-state {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-soft);
+}
+
+.home-container .work-areas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.home-container .work-area-card {
+  min-height: 312px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.home-container .work-area-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-panel);
+  border-color: var(--border-strong);
+}
+
+.home-container .work-area-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.home-container .work-area-title-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-height: 44px;
+  min-width: 0;
+  border-radius: 6px;
+  cursor: text;
+}
+
+.home-container .work-area-icon {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-color);
+  flex-shrink: 0;
+}
+
+.home-container .work-area-name {
+  font-size: 1.12rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+}
+
+.home-container .work-area-name-input {
+  min-height: 40px;
+  width: 100%;
+}
+
+.home-container .work-area-action-icons {
+  display: flex;
+  gap: 8px;
+}
+
+.home-container .btn-delete {
+  color: var(--danger-color);
+}
+
+.home-container .btn-delete:hover {
+  background: var(--danger-soft);
+  border-color: rgba(220, 38, 38, 0.14);
+  color: var(--danger-color);
+}
+
+.home-container .work-area-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 112px;
+}
+
+.home-container .info-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-secondary);
+}
+
+.home-container .info-item i {
+  width: 18px;
+  color: var(--text-muted);
+}
+
+.home-container .work-area-card-create {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+  border-style: dashed;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 48%, transparent), transparent),
+    var(--bg-primary);
+}
+
+.home-container .work-area-card-create:hover {
+  border-color: color-mix(in srgb, var(--accent-color) 34%, var(--border-color));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 72%, transparent), transparent),
+    var(--bg-primary);
+}
+
+.home-container .create-card-icon {
+  width: 68px;
+  height: 68px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  color: var(--accent-color);
+  font-size: 1.4rem;
+  box-shadow: 0 18px 28px rgba(37, 99, 235, 0.14);
+}
+
+.home-container .work-area-card-create strong {
+  color: var(--text-primary);
+  font-size: 1.08rem;
+}
+
+.home-container .work-area-card-create span:last-child {
+  max-width: 220px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.home-container .empty-state {
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 34px;
+  text-align: center;
+}
+
+.home-container .empty-state i {
+  color: var(--text-muted);
+}
+
+.home-container .empty-state h3 {
+  color: var(--text-primary);
+  font-size: 1.25rem;
+}
+
+.home-container .empty-state p {
+  max-width: 520px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.home-container .warning-message i.fa-exclamation-triangle {
+  color: var(--danger-color);
+}
+
+.home-container .btn-danger-text,
+.home-container .fa-trash {
+  color: inherit;
+}
+
+@media (max-width: 768px) {
+  .home-container .work-areas-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-container .work-area-card,
+  .home-container .work-area-card-create {
+    min-height: 280px;
+  }
+}

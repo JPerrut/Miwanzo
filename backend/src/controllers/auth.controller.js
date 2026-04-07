@@ -2,6 +2,30 @@ const User = require('../models/user.model');
 const { generateToken, verifyPassword, calculateExpiry } = require('../utils/auth.utils');
 const passport = require('../config/passport');
 
+function handleAuthError(res, error, context) {
+  console.error(`Erro em ${context}:`, error);
+
+  if (error.code === '28P01') {
+    return res.status(503).json({
+      error: 'Falha de autenticacao no banco de dados. Verifique a DATABASE_URL em backend/.env.',
+    });
+  }
+
+  if (error.code === '3D000') {
+    return res.status(503).json({
+      error: 'Banco de dados configurado nao existe. Verifique o nome do banco em backend/.env.',
+    });
+  }
+
+  if (error.code === 'ECONNREFUSED') {
+    return res.status(503).json({
+      error: 'Nao foi possivel conectar ao PostgreSQL. Verifique se o servico esta ativo.',
+    });
+  }
+
+  return res.status(500).json({ error: 'Erro interno do servidor' });
+}
+
 const authController = {
   async register(req, res) {
     try {
@@ -45,14 +69,13 @@ const authController = {
         },
       });
     } catch (error) {
-      console.error('Erro no registro:', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      return handleAuthError(res, error, 'register');
     }
   },
 
   async login(req, res) {
     try {
-      const { email, password, rememberMe } = req.body;
+      const { email, password } = req.body;
 
       const user = await User.findByEmail(email);
       if (!user) {
@@ -80,8 +103,7 @@ const authController = {
         },
       });
     } catch (error) {
-      console.error('Erro no login:', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      return handleAuthError(res, error, 'login');
     }
   },
 

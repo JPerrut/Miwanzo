@@ -1,0 +1,46 @@
+.not-found-page {
+  min-height: calc(100vh - 220px);
+  border: 1px solid var(--border-color);
+  border-radius: 15px;
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-panel);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+  padding: 40px 24px;
+}
+
+.not-found-page h1 {
+  font-size: clamp(4.5rem, 10vw, 7rem);
+  line-height: 1;
+  color: var(--accent-color);
+}
+
+.not-found-page p {
+  color: var(--text-secondary);
+  font-size: 1.12rem;
+}
+
+.not-found-description {
+  max-width: 560px;
+  line-height: 1.7;
+}
+
+.home-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 7px;
+  background: var(--accent-color);
+  color: var(--accent-contrast);
+  font-weight: 700;
+}
+
+.home-link:hover {
+  background: var(--accent-strong);
+}

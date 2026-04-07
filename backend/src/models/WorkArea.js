@@ -42,6 +42,23 @@ const WorkArea = {
     return result.rows;
   },
 
+  async findByUserIdWithMetrics(user_id) {
+    const query = `
+      SELECT
+        wa.*,
+        COUNT(DISTINCT s.id)::int AS section_count,
+        COUNT(t.id)::int AS task_count
+      FROM work_areas wa
+      LEFT JOIN sections s ON s.work_area_id = wa.id
+      LEFT JOIN tasks t ON t.section_id = s.id
+      WHERE wa.user_id = $1
+      GROUP BY wa.id
+      ORDER BY wa.order_index ASC, wa.created_at ASC
+    `;
+    const result = await db.query(query, [user_id]);
+    return result.rows;
+  },
+
   async findById(id, user_id = null) {
     let query = 'SELECT * FROM work_areas WHERE id = $1';
     const values = [id];

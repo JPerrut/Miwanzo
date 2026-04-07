@@ -1,0 +1,31 @@
+.loading-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 24px;
+  text-align: center;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.16), transparent 24%),
+    linear-gradient(145deg, var(--accent-color) 0%, var(--accent-strong) 45%, #0ea5e9 100%);
+}
+
+.loading-container p {
+  color: #f8fbff;
+  font-size: 1.08rem;
+  font-weight: 700;
+}
+
+.loading-container .loading-spinner {
+  width: 58px;
+  height: 58px;
+  border-width: 4px;
+  border-color: rgba(255, 255, 255, 0.28);
+  border-top-color: #ffffff;
+}
+
+.loading-screen {
+  min-height: 100vh;
+}
