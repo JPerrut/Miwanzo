@@ -21,9 +21,11 @@ const GoogleCallbackPage = () => {
   }, [navigate]);
 
   return (
-    <div className="loading-container">
-      <div className="loading-spinner"></div>
-      <p>Processando login com Google...</p>
+    <div className="google-callback-page">
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Processando login com Google...</p>
+      </div>
     </div>
   );
 };

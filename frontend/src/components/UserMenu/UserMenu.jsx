@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faChevronDown,
-  faCog,
   faRightFromBracket,
   faUser,
   faUserCircle,
@@ -57,11 +56,6 @@ const UserMenu = () => {
       label: 'Meu perfil',
       icon: faUser,
       onClick: () => navigate('/settings/profile'),
-    },
-    {
-      label: 'Preferencias',
-      icon: faCog,
-      onClick: () => navigate('/settings'),
     },
     {
       label: 'Sair',

@@ -1,28 +1,14 @@
 import React from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMoon, faSliders, faSun } from '@fortawesome/free-solid-svg-icons';
+import { faMoon, faSun } from '@fortawesome/free-solid-svg-icons';
 import { useTheme } from '../context/ThemeContext';
 import './SettingsPage.css';
 
 const SettingsPage = () => {
-  const { theme, setTheme, isDark } = useTheme();
+  const { theme, setTheme } = useTheme();
 
   return (
     <div className="settings-page">
-      <div className="settings-hero">
-        <div>
-          <span className="settings-eyebrow">Preferencias da interface</span>
-          <h2>Personalize o visual da sua conta</h2>
-          <p>
-            Ajuste o modo claro e noturno com contraste equilibrado e uma leitura confortavel
-            em toda a aplicacao.
-          </p>
-        </div>
-        <div className="settings-hero-icon">
-          <FontAwesomeIcon icon={faSliders} />
-        </div>
-      </div>
-
       <div className="settings-content">
         <section className="settings-section">
           <div className="settings-section-head">
@@ -62,12 +48,6 @@ const SettingsPage = () => {
         </section>
 
         <section className="settings-grid">
-          <article className="settings-card">
-            <h3>Estado atual</h3>
-            <p className="settings-card-highlight">{isDark ? 'Modo noturno ativo' : 'Modo claro ativo'}</p>
-            <p>O shell, os modais, a sidebar e as telas principais ja seguem o tema selecionado.</p>
-          </article>
-
           <article className="settings-card">
             <h3>Idioma</h3>
             <select defaultValue="pt-br">

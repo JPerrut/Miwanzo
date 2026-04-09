@@ -5,10 +5,8 @@ import {
   faBriefcase,
   faChevronDown,
   faChevronRight,
-  faCog,
   faFolder,
   faHouse,
-  faListCheck,
   faThumbtack,
   faXmark,
 } from '@fortawesome/free-solid-svg-icons';
@@ -21,20 +19,6 @@ const baseMenuItems = [
     icon: faHouse,
     path: '/',
     submenu: null,
-  },
-  {
-    title: 'Area de tarefas',
-    icon: faListCheck,
-    path: '/tasks',
-    submenu: null,
-  },
-  {
-    title: 'Configuracoes',
-    icon: faCog,
-    submenu: [
-      { title: 'Perfil', path: '/settings/profile' },
-      { title: 'Preferencias', path: '/settings' },
-    ],
   },
 ];
 

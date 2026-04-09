@@ -2,12 +2,15 @@ const Section = require('../models/Section');
 const WorkArea = require('../models/WorkArea');
 const Task = require('../models/Task');
 
+const normalizeSectionName = (value) => String(value || '').trim().replace(/\s+/g, ' ');
+
 exports.createSection = async (req, res) => {
   try {
     const { name, work_area_id, description, order_index } = req.body;
     const userId = req.userId;
+    const normalizedName = normalizeSectionName(name);
 
-    if (!name || !name.trim()) {
+    if (!normalizedName) {
       return res.status(400).json({
         success: false,
         message: 'Nome da secao e obrigatorio',
@@ -29,8 +32,16 @@ exports.createSection = async (req, res) => {
       });
     }
 
+    const duplicatedSection = await Section.findByNameInWorkArea(work_area_id, normalizedName);
+    if (duplicatedSection) {
+      return res.status(409).json({
+        success: false,
+        message: 'Ja existe uma secao com esse nome nesta area de trabalho',
+      });
+    }
+
     const newSection = await Section.create({
-      name: name.trim(),
+      name: normalizedName,
       work_area_id,
       user_id: userId,
       description: description ? String(description) : null,
@@ -193,13 +204,14 @@ exports.updateSection = async (req, res) => {
 
     const updates = {};
     if (name !== undefined) {
-      if (!String(name).trim()) {
+      const normalizedName = normalizeSectionName(name);
+      if (!normalizedName) {
         return res.status(400).json({
           success: false,
           message: 'Nome da secao e obrigatorio',
         });
       }
-      updates.name = String(name).trim();
+      updates.name = normalizedName;
     }
     if (description !== undefined) {
       updates.description = description === null ? null : String(description);
@@ -216,6 +228,23 @@ exports.updateSection = async (req, res) => {
         success: false,
         message: 'Nenhuma alteracao informada',
       });
+    }
+
+    if (updates.name !== undefined || updates.work_area_id !== undefined) {
+      const targetWorkAreaId = updates.work_area_id || section.work_area_id;
+      const targetName = updates.name || section.name;
+      const duplicatedSection = await Section.findByNameInWorkArea(
+        targetWorkAreaId,
+        targetName,
+        id,
+      );
+
+      if (duplicatedSection) {
+        return res.status(409).json({
+          success: false,
+          message: 'Ja existe uma secao com esse nome nesta area de trabalho',
+        });
+      }
     }
 
     const updated = await Section.update(id, updates, userId);

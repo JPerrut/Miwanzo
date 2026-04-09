@@ -132,12 +132,12 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 12px;
 }
 
 .menu-section {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-height: auto;
 }
 
 .menu-caption {
@@ -271,6 +271,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  margin-top: 8px;
   padding-top: 14px;
   border-top: 1px solid var(--border-color);
 }

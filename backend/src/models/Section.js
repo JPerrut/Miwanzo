@@ -46,6 +46,27 @@ const Section = {
     return result.rows[0];
   },
 
+  async findByNameInWorkArea(work_area_id, name, exclude_id = null) {
+    const values = [work_area_id, name];
+    let query = `
+      SELECT *
+      FROM sections
+      WHERE work_area_id = $1
+        AND LOWER(REGEXP_REPLACE(TRIM(name), '\\s+', ' ', 'g')) =
+            LOWER(REGEXP_REPLACE(TRIM($2), '\\s+', ' ', 'g'))
+    `;
+
+    if (exclude_id) {
+      query += ' AND id <> $3';
+      values.push(exclude_id);
+    }
+
+    query += ' LIMIT 1';
+
+    const result = await db.query(query, values);
+    return result.rows[0];
+  },
+
   async update(id, updates, user_id = null) {
     const fields = ['updated_at = NOW()'];
     const values = [];

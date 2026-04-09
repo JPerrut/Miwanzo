@@ -6,15 +6,6 @@ import { taskService } from '../services/taskService';
 import { workAreaService } from '../services/workAreaService';
 import './WorkAreaPage.css';
 
-const COLUMN_TYPES = [
-  { value: 'BACKLOG', label: 'Backlog', hint: 'Entrada inicial de ideias' },
-  { value: 'TODO', label: 'A Fazer', hint: 'Itens prontos para iniciar' },
-  { value: 'IN_PROGRESS', label: 'Em Progresso', hint: 'Execucao ativa' },
-  { value: 'REVIEW', label: 'Revisao', hint: 'Conferencia e ajustes' },
-  { value: 'DONE', label: 'Concluido', hint: 'Entregas finalizadas' },
-  { value: 'CUSTOM', label: 'Personalizado', hint: 'Fluxo customizado' },
-];
-
 const TASK_FIELD_TYPES = [
   { value: 'text', label: 'Texto', icon: 'fa-font', defaultName: 'Texto' },
   { value: 'number', label: 'Numero', icon: 'fa-hashtag', defaultName: 'Numero' },
@@ -23,22 +14,72 @@ const TASK_FIELD_TYPES = [
   { value: 'select', label: 'Select', icon: 'fa-list', defaultName: 'Select' },
 ];
 
+const DEFAULT_SELECT_OPTION_COLORS = [
+  '#8AC6A9',
+  '#48B2CC',
+  '#EAD878',
+  '#F6A500',
+  '#94A4C7',
+  '#B39DDB',
+  '#93D4C6',
+  '#E6C98F',
+];
+
+const createGeneratedId = (prefix) =>
+  `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+
+const createDefaultSelectOptions = () =>
+  ['Opcao 1', 'Opcao 2', 'Opcao 3'].map((name, index) => ({
+    id: `opt_default_${index + 1}`,
+    name,
+    color: DEFAULT_SELECT_OPTION_COLORS[index % DEFAULT_SELECT_OPTION_COLORS.length],
+    linkSectionId: '',
+  }));
+
+const normalizeSelectOptions = (options, fallbackToDefault = true) => {
+  const normalized = (Array.isArray(options) ? options : [])
+    .map((option, index) => ({
+      id: option?.id || createGeneratedId('opt'),
+      name: (option?.name || '').trim() || `Opcao ${index + 1}`,
+      color:
+        typeof option?.color === 'string' && option.color.trim()
+          ? option.color.trim()
+          : DEFAULT_SELECT_OPTION_COLORS[index % DEFAULT_SELECT_OPTION_COLORS.length],
+      linkSectionId: option?.linkSectionId || option?.link_section_id || '',
+    }))
+    .filter((option) => Boolean(option.name));
+
+  if (normalized.length > 0) return normalized;
+  return fallbackToDefault ? createDefaultSelectOptions() : [];
+};
+
 const DEFAULT_SECTION_META = {
   columnType: 'CUSTOM',
   topic: '',
-  primaryColumnName: 'Nome da tarefa',
+  primaryColumnName: 'Tarefa',
   taskColumns: [],
+};
+
+const normalizePrimaryColumnName = (name) => {
+  const raw = String(name || '').trim();
+  if (!raw) return DEFAULT_SECTION_META.primaryColumnName;
+  if (raw.toLowerCase() === 'nome da tarefa') return 'Tarefa';
+  return raw;
 };
 
 const normalizeTaskColumns = (taskColumns) =>
   Array.isArray(taskColumns)
     ? taskColumns
         .map((column) => ({
-          id: column.id || `col_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+          id: column.id || createGeneratedId('col'),
           name: column.name || 'Nova coluna',
           type: ['text', 'number', 'date', 'currency', 'select'].includes(column.type)
             ? column.type
             : 'text',
+          options:
+            column.type === 'select'
+              ? normalizeSelectOptions(column.options, true)
+              : undefined,
         }))
         .filter((column) => Boolean(column.name?.trim()))
     : [];
@@ -52,7 +93,7 @@ const getSectionMeta = (description) => {
       return {
         columnType: parsed.columnType || DEFAULT_SECTION_META.columnType,
         topic: parsed.topic || '',
-        primaryColumnName: parsed.primaryColumnName || DEFAULT_SECTION_META.primaryColumnName,
+        primaryColumnName: normalizePrimaryColumnName(parsed.primaryColumnName),
         taskColumns: normalizeTaskColumns(parsed.taskColumns),
       };
     }
@@ -67,7 +108,7 @@ const serializeSectionMeta = (meta) =>
   JSON.stringify({
     columnType: meta.columnType || DEFAULT_SECTION_META.columnType,
     topic: (meta.topic || '').trim(),
-    primaryColumnName: (meta.primaryColumnName || DEFAULT_SECTION_META.primaryColumnName).trim(),
+    primaryColumnName: normalizePrimaryColumnName(meta.primaryColumnName),
     taskColumns: normalizeTaskColumns(meta.taskColumns),
   });
 
@@ -127,12 +168,105 @@ const getDefaultColumnNameByType = (columnType, existingColumns) => {
   return `${baseName} ${nextIndex}`;
 };
 
+const cloneSelectOptions = (options, regenerateIds = false) =>
+  normalizeSelectOptions(options, true).map((option) => ({
+    ...option,
+    id: regenerateIds ? createGeneratedId('opt') : option.id,
+  }));
+
+const getSelectOptionByStoredValue = (column, storedValue) => {
+  if (!column || column.type !== 'select') return null;
+  const normalized = normalizeSelectOptions(column.options, true);
+  const raw = String(storedValue || '').trim();
+  if (!raw) return null;
+
+  return (
+    normalized.find((option) => option.id === raw) ||
+    normalized.find((option) => option.name === raw) ||
+    null
+  );
+};
+
+const getSelectCellPresentation = (column, storedValue) => {
+  const option = getSelectOptionByStoredValue(column, storedValue);
+  if (!option) {
+    if (!String(storedValue || '').trim()) {
+      return { label: '-', color: null };
+    }
+    return { label: String(storedValue), color: null };
+  }
+
+  return {
+    label: option.name,
+    color: option.color,
+  };
+};
+
+const parseLocaleNumericValue = (rawValue) => {
+  const source = String(rawValue || '').trim();
+  if (!source) return { valid: false };
+
+  let sanitized = source.replace(/[^\d,.-]/g, '');
+  if (!sanitized) return { valid: false };
+
+  const isNegative = sanitized.includes('-');
+  sanitized = sanitized.replace(/-/g, '');
+
+  const lastComma = sanitized.lastIndexOf(',');
+  const lastDot = sanitized.lastIndexOf('.');
+  const decimalIndex = Math.max(lastComma, lastDot);
+
+  const integerPartRaw = decimalIndex >= 0 ? sanitized.slice(0, decimalIndex) : sanitized;
+  const decimalPartRaw = decimalIndex >= 0 ? sanitized.slice(decimalIndex + 1) : '';
+
+  const integerDigits = integerPartRaw.replace(/[.,]/g, '');
+  const decimalDigits = decimalPartRaw.replace(/[.,]/g, '');
+
+  if (!integerDigits && !decimalDigits) return { valid: false };
+
+  const normalized = `${isNegative ? '-' : ''}${integerDigits || '0'}${decimalDigits ? `.${decimalDigits}` : ''}`;
+  const numeric = Number(normalized);
+  if (!Number.isFinite(numeric)) return { valid: false };
+
+  return { valid: true, value: numeric };
+};
+
+const formatCurrencyInputForTyping = (rawValue) => {
+  const digitsOnly = String(rawValue || '').replace(/\D/g, '');
+  if (!digitsOnly) return '';
+
+  const normalizedDigits = digitsOnly.replace(/^0+(?=\d)/, '') || '0';
+  const cents = normalizedDigits.slice(-2).padStart(2, '0');
+  const integerDigits = normalizedDigits.length > 2 ? normalizedDigits.slice(0, -2) : '0';
+  const integerNumber = Number(integerDigits);
+  const integerFormatted = Number.isFinite(integerNumber)
+    ? integerNumber.toLocaleString('pt-BR')
+    : '0';
+
+  return `${integerFormatted},${cents}`;
+};
+
+const sanitizeNumberInputForTyping = (rawValue) => {
+  const source = String(rawValue || '');
+  const stripped = source.replace(/[^\d,.-]/g, '');
+  if (!stripped) return '';
+
+  const negative = stripped.startsWith('-') ? '-' : '';
+  return `${negative}${stripped.replace(/-/g, '')}`;
+};
+
 const formatTaskFieldValue = (value, type) => {
   if (value === null || value === undefined || String(value).trim() === '') return '-';
+  if (type === 'date') {
+    const normalizedDate = normalizeDateCandidateToIso(value);
+    if (!normalizedDate.valid || !normalizedDate.value) return value;
+    const [year, month, day] = normalizedDate.value.split('-');
+    return `${day}/${month}/${year}`;
+  }
   if (type === 'currency') {
-    const numeric = Number(String(value).replace(',', '.'));
-    if (Number.isFinite(numeric)) {
-      return numeric.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const parsed = parseLocaleNumericValue(value);
+    if (parsed.valid) {
+      return parsed.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     }
     return value;
   }
@@ -140,25 +274,109 @@ const formatTaskFieldValue = (value, type) => {
 };
 
 const getInputTypeForField = (fieldType) => {
-  if (fieldType === 'number' || fieldType === 'currency') return 'number';
+  if (fieldType === 'number' || fieldType === 'currency') return 'text';
   if (fieldType === 'date') return 'date';
   return 'text';
 };
 
+const getInputModeForField = (fieldType) => {
+  if (fieldType === 'number' || fieldType === 'currency') return 'decimal';
+  if (fieldType === 'date') return 'numeric';
+  return 'text';
+};
+
+const normalizeDateCandidateToIso = (rawValue) => {
+  const source = String(rawValue || '').trim();
+  if (!source) return { valid: true, value: '' };
+
+  let year;
+  let month;
+  let day;
+
+  const isoMatch = source.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const brMatch = source.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+
+  if (isoMatch) {
+    year = Number(isoMatch[1]);
+    month = Number(isoMatch[2]);
+    day = Number(isoMatch[3]);
+  } else if (brMatch) {
+    day = Number(brMatch[1]);
+    month = Number(brMatch[2]);
+    year = Number(brMatch[3]);
+  } else {
+    return { valid: false };
+  }
+
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  const isSameDate =
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day;
+
+  if (!isSameDate) return { valid: false };
+
+  const isoValue = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  return { valid: true, value: isoValue };
+};
+
+const normalizeTaskFieldInputValue = (rawValue, fieldType) => {
+  const asString = rawValue === null || rawValue === undefined ? '' : String(rawValue);
+  const trimmed = asString.trim();
+
+  if (!trimmed) {
+    return { valid: true, normalizedValue: '' };
+  }
+
+  if (fieldType === 'text') {
+    return { valid: true, normalizedValue: trimmed };
+  }
+
+  if (fieldType === 'number') {
+    const parsed = parseLocaleNumericValue(trimmed);
+    if (!parsed.valid) {
+      return { valid: false, errorMessage: 'Essa coluna aceita apenas numeros.' };
+    }
+    return { valid: true, normalizedValue: String(parsed.value) };
+  }
+
+  if (fieldType === 'currency') {
+    const parsed = parseLocaleNumericValue(trimmed);
+    if (!parsed.valid) {
+      return { valid: false, errorMessage: 'Essa coluna aceita apenas valores monetarios validos.' };
+    }
+    return { valid: true, normalizedValue: parsed.value.toFixed(2) };
+  }
+
+  if (fieldType === 'date') {
+    const normalizedDate = normalizeDateCandidateToIso(trimmed);
+    if (!normalizedDate.valid) {
+      return {
+        valid: false,
+        errorMessage: 'Essa coluna aceita datas no formato DD/MM/AAAA ou AAAA-MM-DD.',
+      };
+    }
+    return { valid: true, normalizedValue: normalizedDate.value };
+  }
+
+  return { valid: true, normalizedValue: trimmed };
+};
+
 const COLUMN_WIDTHS_STORAGE_KEY = 'miwanzo_column_widths_v2';
+const TASK_SORT_STORAGE_KEY = 'miwanzo_task_sort_v1';
 const PRIMARY_COLUMN_KEY = '__primary__';
 const ESTIMATED_COLUMN_CHAR_WIDTH = 8;
 const MIN_PRIMARY_WIDTH_FALLBACK = 120;
-const MIN_CUSTOM_WIDTH_FALLBACK = 136;
+const MIN_CUSTOM_WIDTH_FALLBACK = 160;
 const MAX_PRIMARY_WIDTH_FALLBACK = 260;
-const MAX_CUSTOM_WIDTH_FALLBACK = 300;
+const MAX_CUSTOM_WIDTH_FALLBACK = 360;
 
 const clampNumber = (value, min, max) => Math.min(Math.max(value, min), max);
 
 const getNaturalColumnWidthByName = (columnName, isPrimaryColumn = false) => {
   const safeName = String(columnName || '').trim();
   const textWidth = Math.max(1, safeName.length) * ESTIMATED_COLUMN_CHAR_WIDTH;
-  const basePadding = isPrimaryColumn ? 42 : 72;
+  const basePadding = isPrimaryColumn ? 42 : 106;
   const minWidth = isPrimaryColumn ? MIN_PRIMARY_WIDTH_FALLBACK : MIN_CUSTOM_WIDTH_FALLBACK;
   const maxWidth = isPrimaryColumn ? MAX_PRIMARY_WIDTH_FALLBACK : MAX_CUSTOM_WIDTH_FALLBACK;
   return clampNumber(Math.round(textWidth + basePadding), minWidth, maxWidth);
@@ -194,6 +412,39 @@ const loadColumnWidthsFromStorage = () => {
   }
 };
 
+const loadTaskSortFromStorage = () => {
+  if (typeof window === 'undefined') return {};
+
+  try {
+    const stored = window.localStorage.getItem(TASK_SORT_STORAGE_KEY);
+    if (!stored) return {};
+
+    const parsed = JSON.parse(stored);
+    if (!parsed || typeof parsed !== 'object') return {};
+
+    return Object.entries(parsed).reduce((acc, [sectionId, rawSort]) => {
+      if (!rawSort || typeof rawSort !== 'object') return acc;
+
+      const key = typeof rawSort.key === 'string' ? rawSort.key : '';
+      const direction = rawSort.direction === 'asc' || rawSort.direction === 'desc'
+        ? rawSort.direction
+        : '';
+      const type = typeof rawSort.type === 'string' ? rawSort.type : 'text';
+
+      if (!key || !direction) return acc;
+
+      acc[sectionId] = {
+        key,
+        direction,
+        type,
+      };
+      return acc;
+    }, {});
+  } catch (_error) {
+    return {};
+  }
+};
+
 const sortByOrder = (items) =>
   [...items].sort((a, b) => {
     const aOrder = Number.isFinite(Number(a.order_index)) ? Number(a.order_index) : 0;
@@ -201,6 +452,53 @@ const sortByOrder = (items) =>
     if (aOrder !== bOrder) return aOrder - bOrder;
     return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
   });
+
+const buildDuplicatedTaskTitle = (originalTitle, usedLowerTitles) => {
+  const normalizedOriginal = String(originalTitle || '').trim() || 'Tarefa';
+  const baseCandidate = `${normalizedOriginal} (copy)`;
+  if (!usedLowerTitles.has(baseCandidate.toLowerCase())) {
+    return baseCandidate;
+  }
+
+  let suffix = 2;
+  let candidate = `${normalizedOriginal} (copy ${suffix})`;
+  while (usedLowerTitles.has(candidate.toLowerCase())) {
+    suffix += 1;
+    candidate = `${normalizedOriginal} (copy ${suffix})`;
+  }
+
+  return candidate;
+};
+
+const normalizeSectionName = (value) => String(value || '').trim().replace(/\s+/g, ' ');
+const normalizeSectionNameKey = (value) => normalizeSectionName(value).toLocaleLowerCase('pt-BR');
+
+const hasSectionNameConflict = (sectionList, candidateName, excludedSectionId = null) => {
+  const normalizedCandidateKey = normalizeSectionNameKey(candidateName);
+  if (!normalizedCandidateKey) return false;
+
+  return sectionList.some((section) => {
+    if (excludedSectionId && section.id === excludedSectionId) return false;
+    return normalizeSectionNameKey(section.name) === normalizedCandidateKey;
+  });
+};
+
+const buildDuplicatedSectionName = (originalName, usedLowerNames) => {
+  const normalizedOriginal = normalizeSectionName(originalName) || 'Secao';
+  const baseCandidate = `${normalizedOriginal} (copy)`;
+  if (!usedLowerNames.has(normalizeSectionNameKey(baseCandidate))) {
+    return baseCandidate;
+  }
+
+  let suffix = 2;
+  let candidate = `${normalizedOriginal} (copy ${suffix})`;
+  while (usedLowerNames.has(normalizeSectionNameKey(candidate))) {
+    suffix += 1;
+    candidate = `${normalizedOriginal} (copy ${suffix})`;
+  }
+
+  return candidate;
+};
 
 const WorkAreaPage = () => {
   const { workAreaId } = useParams();
@@ -215,7 +513,9 @@ const WorkAreaPage = () => {
   const [showSectionModal, setShowSectionModal] = useState(false);
   const [showDeleteSectionModal, setShowDeleteSectionModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showDeleteTasksModal, setShowDeleteTasksModal] = useState(false);
   const [deletingColumnTarget, setDeletingColumnTarget] = useState(null);
+  const [sectionActionsMenu, setSectionActionsMenu] = useState(null);
 
   const [newSectionName, setNewSectionName] = useState('');
   const [deletingSection, setDeletingSection] = useState(null);
@@ -233,16 +533,31 @@ const WorkAreaPage = () => {
   const [editingSectionId, setEditingSectionId] = useState(null);
   const [editingSectionName, setEditingSectionName] = useState('');
 
+  const [draggingSection, setDraggingSection] = useState(null);
+  const [dragOverSectionTargetId, setDragOverSectionTargetId] = useState(null);
   const [draggingTask, setDraggingTask] = useState(null);
   const [dragOverSectionId, setDragOverSectionId] = useState(null);
+  const [draggingColumn, setDraggingColumn] = useState(null);
+  const [dragOverColumn, setDragOverColumn] = useState(null);
   const [selectedTasks, setSelectedTasks] = useState({});
   const [columnTypeMenu, setColumnTypeMenu] = useState(null);
   const [columnActionsMenu, setColumnActionsMenu] = useState(null);
+  const [selectFieldMenu, setSelectFieldMenu] = useState(null);
+  const [selectColorMenu, setSelectColorMenu] = useState(null);
+  const [selectLinkMenu, setSelectLinkMenu] = useState(null);
+  const [editingSelectOption, setEditingSelectOption] = useState(null);
+  const [creatingSelectOption, setCreatingSelectOption] = useState(false);
+  const [newSelectOptionName, setNewSelectOptionName] = useState('');
   const [editingColumnInline, setEditingColumnInline] = useState(null);
+  const [editingTaskField, setEditingTaskField] = useState(null);
+  const [collapsedSections, setCollapsedSections] = useState({});
   const [inlineTaskDraftBySection, setInlineTaskDraftBySection] = useState({});
   const [creatingInlineTaskBySection, setCreatingInlineTaskBySection] = useState({});
   const [columnWidthsBySection, setColumnWidthsBySection] = useState(() =>
     loadColumnWidthsFromStorage(),
+  );
+  const [taskSortBySection, setTaskSortBySection] = useState(() =>
+    loadTaskSortFromStorage(),
   );
   const [resizingColumn, setResizingColumn] = useState(null);
 
@@ -253,6 +568,16 @@ const WorkAreaPage = () => {
     });
     return map;
   }, [sections]);
+
+  const normalizedNewSectionName = useMemo(
+    () => normalizeSectionName(newSectionName),
+    [newSectionName],
+  );
+
+  const isNewSectionNameDuplicated = useMemo(
+    () => hasSectionNameConflict(sections, normalizedNewSectionName),
+    [normalizedNewSectionName, sections],
+  );
 
   const activeColumnMenuContext = useMemo(() => {
     if (!columnActionsMenu) return null;
@@ -265,15 +590,45 @@ const WorkAreaPage = () => {
     return { section, column };
   }, [columnActionsMenu, sectionMetaById, sections]);
 
+  const activeSectionMenuContext = useMemo(() => {
+    if (!sectionActionsMenu) return null;
+    return sections.find((item) => item.id === sectionActionsMenu.sectionId) || null;
+  }, [sectionActionsMenu, sections]);
+
   const activeColumnTypeSection = useMemo(() => {
     if (!columnTypeMenu) return null;
     return sections.find((item) => item.id === columnTypeMenu.sectionId) || null;
   }, [columnTypeMenu, sections]);
 
+  const activeSelectFieldContext = useMemo(() => {
+    if (!selectFieldMenu) return null;
+    const section = sections.find((item) => item.id === selectFieldMenu.sectionId);
+    if (!section) return null;
+
+    const task = (tasks[section.id] || []).find((item) => item.id === selectFieldMenu.taskId);
+    if (!task) return null;
+
+    const column = (sectionMetaById[section.id]?.taskColumns || []).find(
+      (item) => item.id === selectFieldMenu.columnId,
+    );
+    if (!column || column.type !== 'select') return null;
+
+    const payload = task._taskPayload || parseTaskPayload(task.description);
+    const selectedValue = payload.fields?.[column.id] || '';
+    return {
+      section,
+      task,
+      column,
+      payload,
+      selectedValue,
+      options: normalizeSelectOptions(column.options, true),
+    };
+  }, [sectionMetaById, sections, selectFieldMenu, tasks]);
+
   const getTaskColumnsForSection = (sectionId) => sectionMetaById[sectionId]?.taskColumns || [];
 
   const getPrimaryColumnName = (sectionId) =>
-    sectionMetaById[sectionId]?.primaryColumnName || DEFAULT_SECTION_META.primaryColumnName;
+    normalizePrimaryColumnName(sectionMetaById[sectionId]?.primaryColumnName);
 
   const getColumnMinWidth = (sectionId, columnKey, isPrimaryColumn = false) => {
     if (isPrimaryColumn) {
@@ -321,6 +676,126 @@ const WorkAreaPage = () => {
     }, {});
   };
 
+  const getTaskSortState = (sectionId, columnKey) => {
+    const currentSort = taskSortBySection?.[sectionId];
+    if (!currentSort || currentSort.key !== columnKey) return null;
+    return currentSort.direction;
+  };
+
+  const toggleTaskSort = (sectionId, columnKey, columnType) => {
+    setTaskSortBySection((prev) => {
+      const currentSort = prev[sectionId];
+      const nextDirection =
+        currentSort?.key === columnKey && currentSort?.direction === 'asc'
+          ? 'desc'
+          : 'asc';
+
+      return {
+        ...prev,
+        [sectionId]: {
+          key: columnKey,
+          direction: nextDirection,
+          type: columnType || 'text',
+        },
+      };
+    });
+  };
+
+  const getTaskComparableValue = (task, sortKey, sortType, selectColumn = null) => {
+    if (sortKey === PRIMARY_COLUMN_KEY) {
+      return (task.title || '').trim();
+    }
+
+    const payload = task._taskPayload || parseTaskPayload(task.description);
+    const rawValue = payload.fields?.[sortKey] || '';
+    const rawString = String(rawValue || '').trim();
+
+    if (!rawString) return null;
+
+    if (sortType === 'number' || sortType === 'currency') {
+      const parsed = parseLocaleNumericValue(rawString);
+      return parsed.valid ? parsed.value : null;
+    }
+
+    if (sortType === 'date') {
+      const parsedDate = normalizeDateCandidateToIso(rawString);
+      return parsedDate.valid ? parsedDate.value : null;
+    }
+
+    if (sortType === 'select') {
+      const option = getSelectOptionByStoredValue(selectColumn, rawString);
+      return (option?.name || rawString).trim();
+    }
+
+    return rawString;
+  };
+
+  const sortedTasksBySection = useMemo(() => {
+    const map = {};
+
+    sections.forEach((section) => {
+      const sectionTasks = tasks[section.id] || [];
+      const sortState = taskSortBySection?.[section.id];
+      if (!sortState?.key || !sortState?.direction) {
+        map[section.id] = sectionTasks;
+        return;
+      }
+
+      const baseColumns = sectionMetaById[section.id]?.taskColumns || [];
+      const sortColumn =
+        sortState.key === PRIMARY_COLUMN_KEY
+          ? null
+          : baseColumns.find((column) => column.id === sortState.key) || null;
+
+      if (sortState.key !== PRIMARY_COLUMN_KEY && !sortColumn) {
+        map[section.id] = sectionTasks;
+        return;
+      }
+
+      const sortType = sortColumn?.type || 'text';
+      const directionFactor = sortState.direction === 'desc' ? -1 : 1;
+
+      const sorted = [...sectionTasks].sort((a, b) => {
+        const comparableA = getTaskComparableValue(a, sortState.key, sortType, sortColumn);
+        const comparableB = getTaskComparableValue(b, sortState.key, sortType, sortColumn);
+
+        const aIsEmpty =
+          comparableA === null || comparableA === undefined || String(comparableA).trim() === '';
+        const bIsEmpty =
+          comparableB === null || comparableB === undefined || String(comparableB).trim() === '';
+
+        if (aIsEmpty && !bIsEmpty) return 1;
+        if (!aIsEmpty && bIsEmpty) return -1;
+
+        if (!aIsEmpty && !bIsEmpty) {
+          let baseComparison = 0;
+          if (sortType === 'number' || sortType === 'currency') {
+            baseComparison = Number(comparableA) - Number(comparableB);
+          } else if (sortType === 'date') {
+            baseComparison = String(comparableA).localeCompare(String(comparableB), 'pt-BR');
+          } else {
+            baseComparison = String(comparableA).localeCompare(String(comparableB), 'pt-BR', {
+              sensitivity: 'base',
+              numeric: true,
+            });
+          }
+
+          if (baseComparison !== 0) return baseComparison * directionFactor;
+        }
+
+        const orderA = Number.isFinite(Number(a.order_index)) ? Number(a.order_index) : 0;
+        const orderB = Number.isFinite(Number(b.order_index)) ? Number(b.order_index) : 0;
+        if (orderA !== orderB) return orderA - orderB;
+
+        return String(a.id || '').localeCompare(String(b.id || ''));
+      });
+
+      map[section.id] = sorted;
+    });
+
+    return map;
+  }, [sectionMetaById, sections, taskSortBySection, tasks]);
+
   const totalTasksCount = useMemo(
     () => sections.reduce((sum, section) => sum + (tasks[section.id] || []).length, 0),
     [sections, tasks],
@@ -338,12 +813,38 @@ const WorkAreaPage = () => {
 
   const allTasksSelected = totalTasksCount > 0 && totalSelectedTasks === totalTasksCount;
 
+  const handleOpenDeleteSelectedTasksModal = () => {
+    if (totalSelectedTasks <= 0) return;
+    setShowDeleteTasksModal(true);
+  };
+
+  const closeDeleteSelectedTasksModal = () => {
+    setShowDeleteTasksModal(false);
+  };
+
   const isTaskSelected = (sectionId, taskId) => Boolean(selectedTasks[sectionId]?.[taskId]);
 
   const areAllSectionTasksSelected = (sectionId) => {
     const sectionTasks = tasks[sectionId] || [];
     if (sectionTasks.length === 0) return false;
     return sectionTasks.every((task) => isTaskSelected(sectionId, task.id));
+  };
+
+  const isSectionCollapsed = (sectionId) => Boolean(collapsedSections[sectionId]);
+
+  const toggleSectionCollapsed = (sectionId) => {
+    setCollapsedSections((prev) => {
+      if (prev[sectionId]) {
+        const next = { ...prev };
+        delete next[sectionId];
+        return next;
+      }
+
+      return {
+        ...prev,
+        [sectionId]: true,
+      };
+    });
   };
 
   const clearTaskSelection = () => {
@@ -482,7 +983,59 @@ const WorkAreaPage = () => {
   }, [tasks]);
 
   useEffect(() => {
-    if (!columnTypeMenu && !columnActionsMenu) return undefined;
+    const validSectionIds = new Set(sections.map((section) => section.id));
+    setCollapsedSections((prev) => {
+      const next = Object.entries(prev).reduce((acc, [sectionId, value]) => {
+        if (value && validSectionIds.has(sectionId)) {
+          acc[sectionId] = true;
+        }
+        return acc;
+      }, {});
+
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+    });
+  }, [sections]);
+
+  useEffect(() => {
+    if (!editingTaskField) return;
+
+    const targetTaskExists = (tasks[editingTaskField.sectionId] || []).some(
+      (task) => task.id === editingTaskField.taskId,
+    );
+
+    if (!targetTaskExists) {
+      setEditingTaskField(null);
+    }
+  }, [editingTaskField, tasks]);
+
+  useEffect(() => {
+    if (selectFieldMenu && !activeSelectFieldContext) {
+      setSelectFieldMenu(null);
+      setSelectColorMenu(null);
+      setSelectLinkMenu(null);
+      setEditingSelectOption(null);
+      setCreatingSelectOption(false);
+      setNewSelectOptionName('');
+    }
+  }, [activeSelectFieldContext, selectFieldMenu]);
+
+  useEffect(() => {
+    if (showDeleteTasksModal && totalSelectedTasks === 0) {
+      setShowDeleteTasksModal(false);
+    }
+  }, [showDeleteTasksModal, totalSelectedTasks]);
+
+  useEffect(() => {
+    if (
+      !columnTypeMenu &&
+      !columnActionsMenu &&
+      !sectionActionsMenu &&
+      !selectFieldMenu &&
+      !selectColorMenu &&
+      !selectLinkMenu
+    ) {
+      return undefined;
+    }
 
     const handleClickOutside = (event) => {
       if (
@@ -498,11 +1051,32 @@ const WorkAreaPage = () => {
       ) {
         setColumnActionsMenu(null);
       }
+
+      if (
+        !event.target.closest('.section-actions-menu-anchor') &&
+        !event.target.closest('.section-actions-popup-floating')
+      ) {
+        setSectionActionsMenu(null);
+      }
+
+      if (
+        !event.target.closest('.task-cell-select') &&
+        !event.target.closest('.select-options-popup-floating') &&
+        !event.target.closest('.select-options-color-popup') &&
+        !event.target.closest('.select-options-link-popup')
+      ) {
+        setSelectFieldMenu(null);
+        setSelectColorMenu(null);
+        setSelectLinkMenu(null);
+        setEditingSelectOption(null);
+        setCreatingSelectOption(false);
+        setNewSelectOptionName('');
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [columnTypeMenu, columnActionsMenu]);
+  }, [columnActionsMenu, columnTypeMenu, sectionActionsMenu, selectColorMenu, selectFieldMenu, selectLinkMenu]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -522,6 +1096,25 @@ const WorkAreaPage = () => {
       // ignore localStorage write errors
     }
   }, [columnWidthsBySection]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const hasSort = Object.values(taskSortBySection).some(
+        (sortState) => sortState?.key && sortState?.direction,
+      );
+
+      if (!hasSort) {
+        window.localStorage.removeItem(TASK_SORT_STORAGE_KEY);
+        return;
+      }
+
+      window.localStorage.setItem(TASK_SORT_STORAGE_KEY, JSON.stringify(taskSortBySection));
+    } catch (_error) {
+      // ignore localStorage write errors
+    }
+  }, [taskSortBySection]);
 
   useEffect(() => {
     if (!resizingColumn) return undefined;
@@ -560,11 +1153,16 @@ const WorkAreaPage = () => {
   }, [resizingColumn]);
 
   const handleCreateSection = async () => {
-    if (!newSectionName.trim()) return;
+    const normalizedSectionName = normalizeSectionName(newSectionName);
+    if (!normalizedSectionName) return;
+    if (hasSectionNameConflict(sections, normalizedSectionName)) {
+      alert('Ja existe uma secao com esse nome nesta area de trabalho.');
+      return;
+    }
 
     try {
       const created = await sectionService.createSection({
-        name: newSectionName.trim(),
+        name: normalizedSectionName,
         work_area_id: workAreaId,
         description: serializeSectionMeta({
           columnType: DEFAULT_SECTION_META.columnType,
@@ -594,7 +1192,7 @@ const WorkAreaPage = () => {
       setShowSectionModal(false);
     } catch (createError) {
       console.error('Erro ao criar secao:', createError);
-      alert('Erro ao criar secao. Tente novamente.');
+      alert(createError?.response?.data?.message || 'Erro ao criar secao. Tente novamente.');
     }
   };
 
@@ -631,15 +1229,229 @@ const WorkAreaPage = () => {
     );
   };
 
+  const clearSectionDragState = () => {
+    setDraggingSection(null);
+    setDragOverSectionTargetId(null);
+  };
+
+  const persistSectionOrder = async (orderedSections) => {
+    await Promise.all(
+      orderedSections.map((section, index) =>
+        sectionService.updateSection(section.id, { order_index: index }),
+      ),
+    );
+  };
+
+  const handleSectionDragStart = (event, sectionId) => {
+    if (editingSectionId === sectionId) {
+      event.preventDefault();
+      return;
+    }
+
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', sectionId);
+    setDraggingSection({ sectionId });
+    setDragOverSectionTargetId(null);
+    setDragOverSectionId(null);
+    setDraggingTask(null);
+  };
+
+  const handleSectionDragOver = (event, targetSectionId) => {
+    if (!draggingSection) return;
+    if (draggingSection.sectionId === targetSectionId) return;
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    setDragOverSectionTargetId((prev) => (prev === targetSectionId ? prev : targetSectionId));
+  };
+
+  const handleSectionDrop = async (event, targetSectionId) => {
+    event.preventDefault();
+    if (!draggingSection) {
+      clearSectionDragState();
+      return;
+    }
+
+    const fromIndex = sections.findIndex((section) => section.id === draggingSection.sectionId);
+    const toIndex = sections.findIndex((section) => section.id === targetSectionId);
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
+      clearSectionDragState();
+      return;
+    }
+
+    const previousSections = sections;
+    const reordered = [...sections];
+    const [movingSection] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, movingSection);
+
+    const nextSections = reordered.map((section, index) => ({
+      ...section,
+      order_index: index,
+    }));
+
+    setSections(nextSections);
+    clearSectionDragState();
+
+    try {
+      await persistSectionOrder(nextSections);
+    } catch (reorderError) {
+      console.error('Erro ao reordenar secoes:', reorderError);
+      setSections(previousSections);
+      alert('Nao foi possivel reordenar as secoes. Tente novamente.');
+    }
+  };
+
+  const handleSectionDragEnd = () => {
+    clearSectionDragState();
+  };
+
+  const clearColumnDragState = () => {
+    setDraggingColumn(null);
+    setDragOverColumn(null);
+  };
+
+  const handleColumnDragStart = (event, sectionId, columnId) => {
+    if (
+      editingColumnInline?.sectionId === sectionId &&
+      editingColumnInline?.columnId === columnId
+    ) {
+      event.preventDefault();
+      return;
+    }
+
+    const targetElement = event.target instanceof Element ? event.target : null;
+    const blockedDragOrigin = targetElement?.closest(
+      '.column-settings-button, .column-resizer-handle, .column-name-input, .column-sort-button',
+    );
+    if (blockedDragOrigin) {
+      event.preventDefault();
+      return;
+    }
+
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', columnId);
+    setDraggingColumn({ sectionId, columnId });
+    setDragOverColumn(null);
+    setColumnTypeMenu(null);
+    setColumnActionsMenu(null);
+  };
+
+  const handleColumnDragOver = (event, sectionId, targetColumnId) => {
+    if (!draggingColumn || draggingColumn.sectionId !== sectionId) return;
+    if (draggingColumn.columnId === targetColumnId) return;
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const position = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+
+    setDragOverColumn((prev) => {
+      if (
+        prev?.sectionId === sectionId &&
+        prev?.targetColumnId === targetColumnId &&
+        prev?.position === position
+      ) {
+        return prev;
+      }
+      return { sectionId, targetColumnId, position };
+    });
+  };
+
+  const handleColumnDrop = async (event, section, targetColumnId, fallbackPosition = 'before') => {
+    event.preventDefault();
+    if (!draggingColumn || draggingColumn.sectionId !== section.id) {
+      clearColumnDragState();
+      return;
+    }
+
+    const baseMeta = sectionMetaById[section.id] || DEFAULT_SECTION_META;
+    const currentColumns = normalizeTaskColumns(baseMeta.taskColumns);
+    const fromIndex = currentColumns.findIndex((item) => item.id === draggingColumn.columnId);
+    const targetIndex = currentColumns.findIndex((item) => item.id === targetColumnId);
+    if (fromIndex === -1 || targetIndex === -1) {
+      clearColumnDragState();
+      return;
+    }
+
+    const position =
+      dragOverColumn?.sectionId === section.id && dragOverColumn?.targetColumnId === targetColumnId
+        ? dragOverColumn.position
+        : fallbackPosition;
+
+    let insertIndex = targetIndex + (position === 'after' ? 1 : 0);
+    if (fromIndex < insertIndex) {
+      insertIndex -= 1;
+    }
+
+    if (insertIndex === fromIndex) {
+      clearColumnDragState();
+      return;
+    }
+
+    const nextColumns = [...currentColumns];
+    const [movingColumn] = nextColumns.splice(fromIndex, 1);
+    nextColumns.splice(insertIndex, 0, movingColumn);
+
+    const unchanged = nextColumns.every((column, index) => column.id === currentColumns[index].id);
+    if (unchanged) {
+      clearColumnDragState();
+      return;
+    }
+
+    try {
+      await saveSectionTaskColumns(section, nextColumns);
+    } catch (reorderError) {
+      console.error('Erro ao reordenar colunas:', reorderError);
+      alert('Erro ao reordenar colunas. Tente novamente.');
+    } finally {
+      clearColumnDragState();
+    }
+  };
+
+  const handleColumnDropToEnd = async (event, section) => {
+    event.preventDefault();
+    if (!draggingColumn || draggingColumn.sectionId !== section.id) {
+      clearColumnDragState();
+      return;
+    }
+
+    const baseMeta = sectionMetaById[section.id] || DEFAULT_SECTION_META;
+    const currentColumns = normalizeTaskColumns(baseMeta.taskColumns);
+    const fromIndex = currentColumns.findIndex((item) => item.id === draggingColumn.columnId);
+    if (fromIndex === -1 || fromIndex === currentColumns.length - 1) {
+      clearColumnDragState();
+      return;
+    }
+
+    const nextColumns = [...currentColumns];
+    const [movingColumn] = nextColumns.splice(fromIndex, 1);
+    nextColumns.push(movingColumn);
+
+    try {
+      await saveSectionTaskColumns(section, nextColumns);
+    } catch (reorderError) {
+      console.error('Erro ao mover coluna para o final:', reorderError);
+      alert('Erro ao reordenar colunas. Tente novamente.');
+    } finally {
+      clearColumnDragState();
+    }
+  };
+
+  const handleColumnDragEnd = () => {
+    clearColumnDragState();
+  };
+
   const handleCreateColumn = async (section, columnType) => {
     try {
       const baseMeta = sectionMetaById[section.id] || DEFAULT_SECTION_META;
       const currentColumns = normalizeTaskColumns(baseMeta.taskColumns);
       const newColumnName = getDefaultColumnNameByType(columnType, currentColumns);
       const newColumn = {
-        id: `col_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+        id: createGeneratedId('col'),
         name: newColumnName,
         type: columnType,
+        options: columnType === 'select' ? createDefaultSelectOptions() : undefined,
       };
 
       const updatedMeta = {
@@ -733,9 +1545,13 @@ const WorkAreaPage = () => {
       }
 
       const duplicatedColumn = {
-        id: `col_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+        id: createGeneratedId('col'),
         name: nextName,
         type: column.type,
+        options:
+          column.type === 'select'
+            ? cloneSelectOptions(column.options, true)
+            : undefined,
       };
 
       const originalIndex = currentColumns.findIndex((item) => item.id === column.id);
@@ -789,6 +1605,22 @@ const WorkAreaPage = () => {
       setEditingColumnInline((prev) =>
         prev?.sectionId === section.id && prev?.columnId === column.id ? null : prev,
       );
+      setTaskSortBySection((prev) => {
+        const currentSort = prev[section.id];
+        if (!currentSort || currentSort.key !== column.id) return prev;
+
+        const next = { ...prev };
+        delete next[section.id];
+        return next;
+      });
+      setSelectFieldMenu((prev) =>
+        prev?.sectionId === section.id && prev?.columnId === column.id ? null : prev,
+      );
+      setSelectColorMenu(null);
+      setSelectLinkMenu(null);
+      setEditingSelectOption(null);
+      setCreatingSelectOption(false);
+      setNewSelectOptionName('');
     } catch (deleteError) {
       console.error('Erro ao excluir coluna:', deleteError);
       alert('Erro ao excluir coluna. Tente novamente.');
@@ -816,9 +1648,658 @@ const WorkAreaPage = () => {
     setDeletingColumnTarget(null);
   };
 
+  const updateSelectColumnOptions = async (sectionId, columnId, updateFn) => {
+    const section = sections.find((item) => item.id === sectionId);
+    if (!section) return null;
+
+    const baseMeta = sectionMetaById[section.id] || DEFAULT_SECTION_META;
+    const currentColumns = normalizeTaskColumns(baseMeta.taskColumns);
+    const targetColumn = currentColumns.find((item) => item.id === columnId && item.type === 'select');
+    if (!targetColumn) return null;
+
+    const currentOptions = normalizeSelectOptions(targetColumn.options, true);
+    const nextOptionsRaw = updateFn(currentOptions);
+    const nextOptions = normalizeSelectOptions(nextOptionsRaw, true);
+
+    const nextColumns = currentColumns.map((item) =>
+      item.id === targetColumn.id
+        ? {
+            ...item,
+            options: nextOptions,
+          }
+        : item,
+    );
+
+    if (JSON.stringify(nextColumns) === JSON.stringify(currentColumns)) {
+      return targetColumn;
+    }
+
+    await saveSectionTaskColumns(section, nextColumns);
+    return nextColumns.find((item) => item.id === targetColumn.id) || null;
+  };
+
+  const openSelectFieldMenu = (event, sectionId, taskId, columnId) => {
+    event.stopPropagation();
+    setEditingTaskField(null);
+    setSelectColorMenu(null);
+    setSelectLinkMenu(null);
+    setEditingSelectOption(null);
+    setCreatingSelectOption(false);
+    setNewSelectOptionName('');
+
+    const triggerRect = event.currentTarget.getBoundingClientRect();
+    const popupWidthEstimate = 460;
+    const popupHeightEstimate = 340;
+    const left = Math.max(12, Math.min(triggerRect.left, window.innerWidth - popupWidthEstimate - 12));
+    const top = Math.max(12, Math.min(triggerRect.bottom + 8, window.innerHeight - popupHeightEstimate - 12));
+
+    setSelectFieldMenu((prev) => {
+      const isSameCell =
+        prev?.sectionId === sectionId &&
+        prev?.taskId === taskId &&
+        prev?.columnId === columnId;
+
+      if (isSameCell) return null;
+
+      return {
+        sectionId,
+        taskId,
+        columnId,
+        top,
+        left,
+      };
+    });
+  };
+
+  const getNextSelectOptionName = (options) => {
+    const existingNames = new Set((options || []).map((option) => option.name.trim().toLowerCase()));
+    let nextIndex = 1;
+    while (existingNames.has(`opcao ${nextIndex}`.toLowerCase())) {
+      nextIndex += 1;
+    }
+    return `Opcao ${nextIndex}`;
+  };
+
+  const beginEditSelectOption = (option) => {
+    setCreatingSelectOption(false);
+    setNewSelectOptionName('');
+    setEditingSelectOption({
+      optionId: option.id,
+      name: option.name,
+    });
+  };
+
+  const saveEditedSelectOptionName = async () => {
+    if (!activeSelectFieldContext || !editingSelectOption) return;
+
+    const nextName = editingSelectOption.name.trim();
+    if (!nextName) {
+      alert('O nome da opcao nao pode ficar vazio.');
+      return;
+    }
+
+    try {
+      await updateSelectColumnOptions(
+        activeSelectFieldContext.section.id,
+        activeSelectFieldContext.column.id,
+        (currentOptions) =>
+          currentOptions.map((option) =>
+            option.id === editingSelectOption.optionId ? { ...option, name: nextName } : option,
+          ),
+      );
+      setEditingSelectOption(null);
+    } catch (updateError) {
+      console.error('Erro ao renomear opcao select:', updateError);
+      alert('Erro ao atualizar opcao. Tente novamente.');
+    }
+  };
+
+  const beginCreateSelectOption = () => {
+    if (!activeSelectFieldContext) return;
+    setEditingSelectOption(null);
+    setCreatingSelectOption(true);
+    setNewSelectOptionName(getNextSelectOptionName(activeSelectFieldContext.options));
+  };
+
+  const saveCreatedSelectOption = async () => {
+    if (!activeSelectFieldContext || !creatingSelectOption) return;
+    const nextName = newSelectOptionName.trim();
+    if (!nextName) {
+      alert('Informe um nome para a nova opcao.');
+      return;
+    }
+
+    try {
+      await updateSelectColumnOptions(
+        activeSelectFieldContext.section.id,
+        activeSelectFieldContext.column.id,
+        (currentOptions) => [
+          ...currentOptions,
+          {
+            id: createGeneratedId('opt'),
+            name: nextName,
+            color: DEFAULT_SELECT_OPTION_COLORS[currentOptions.length % DEFAULT_SELECT_OPTION_COLORS.length],
+            linkSectionId: '',
+          },
+        ],
+      );
+      setCreatingSelectOption(false);
+      setNewSelectOptionName('');
+    } catch (createError) {
+      console.error('Erro ao criar opcao select:', createError);
+      alert('Erro ao criar opcao. Tente novamente.');
+    }
+  };
+
+  const openSelectColorMenu = (event, optionId) => {
+    event.stopPropagation();
+    const triggerRect = event.currentTarget.getBoundingClientRect();
+    const popupWidthEstimate = 260;
+    const left = Math.max(12, Math.min(triggerRect.left - 10, window.innerWidth - popupWidthEstimate - 12));
+    const top = triggerRect.bottom + 8;
+
+    setSelectLinkMenu(null);
+    setSelectColorMenu((prev) =>
+      prev?.optionId === optionId
+        ? null
+        : {
+            optionId,
+            top,
+            left,
+          },
+    );
+  };
+
+  const openSelectLinkMenu = (event, optionId) => {
+    event.stopPropagation();
+    const triggerRect = event.currentTarget.getBoundingClientRect();
+    const popupWidthEstimate = 280;
+    const left = Math.max(12, Math.min(triggerRect.left - 10, window.innerWidth - popupWidthEstimate - 12));
+    const top = triggerRect.bottom + 8;
+
+    setSelectColorMenu(null);
+    setSelectLinkMenu((prev) =>
+      prev?.optionId === optionId
+        ? null
+        : {
+            optionId,
+            top,
+            left,
+          },
+    );
+  };
+
+  const handleSelectOptionColorChange = async (optionId, color) => {
+    if (!activeSelectFieldContext) return;
+
+    try {
+      await updateSelectColumnOptions(
+        activeSelectFieldContext.section.id,
+        activeSelectFieldContext.column.id,
+        (currentOptions) =>
+          currentOptions.map((option) =>
+            option.id === optionId ? { ...option, color } : option,
+          ),
+      );
+      setSelectColorMenu(null);
+    } catch (colorError) {
+      console.error('Erro ao atualizar cor da opcao select:', colorError);
+      alert('Erro ao atualizar cor da opcao.');
+    }
+  };
+
+  const handleSelectOptionLinkChange = async (optionId, linkSectionId) => {
+    if (!activeSelectFieldContext) return;
+
+    try {
+      await updateSelectColumnOptions(
+        activeSelectFieldContext.section.id,
+        activeSelectFieldContext.column.id,
+        (currentOptions) =>
+          currentOptions.map((option) =>
+            option.id === optionId
+              ? { ...option, linkSectionId: linkSectionId || '' }
+              : option,
+          ),
+      );
+      setSelectLinkMenu(null);
+    } catch (linkError) {
+      console.error('Erro ao atualizar vinculo da opcao select:', linkError);
+      alert('Erro ao atualizar vinculo da opcao.');
+    }
+  };
+
+  const handleSelectOptionApplyToTask = async (optionId) => {
+    if (!activeSelectFieldContext) return;
+
+    const {
+      section: sourceSection,
+      task: activeTask,
+      column: sourceColumn,
+      options,
+    } = activeSelectFieldContext;
+    const selectedOption = options.find((option) => option.id === optionId);
+    if (!selectedOption) return;
+
+    const sourceSectionTasks = tasks[sourceSection.id] || [];
+    const sectionSelection = selectedTasks[sourceSection.id] || {};
+    const selectedTasksInSection = sourceSectionTasks.filter((item) => sectionSelection[item.id]);
+    const shouldApplyToSelectedTasks =
+      Boolean(sectionSelection[activeTask.id]) && selectedTasksInSection.length > 0;
+    const tasksToApply = shouldApplyToSelectedTasks
+      ? selectedTasksInSection
+      : sourceSectionTasks.filter((item) => item.id === activeTask.id);
+
+    if (tasksToApply.length === 0) return;
+
+    const sourceColumns = normalizeTaskColumns(sectionMetaById[sourceSection.id]?.taskColumns || []);
+    const linkedSectionId = selectedOption.linkSectionId || '';
+
+    if (!linkedSectionId || linkedSectionId === sourceSection.id) {
+      try {
+        const updatedEntries = await Promise.all(
+          tasksToApply.map(async (taskItem) => {
+            const payload = taskItem._taskPayload || parseTaskPayload(taskItem.description);
+            const nextSourceFields = {
+              ...(payload.fields || {}),
+              [sourceColumn.id]: selectedOption.id,
+            };
+            const nextDescription = serializeTaskPayload({
+              notes: payload.notes || '',
+              fields: nextSourceFields,
+            });
+
+            const updatedTask = await taskService.updateTask(taskItem.id, {
+              description: nextDescription,
+            });
+
+            return {
+              taskId: taskItem.id,
+              updatedTask,
+              nextDescription,
+            };
+          }),
+        );
+
+        const updatesByTaskId = updatedEntries.reduce((acc, item) => {
+          acc[item.taskId] = item;
+          return acc;
+        }, {});
+
+        setTasks((prev) => ({
+          ...prev,
+          [sourceSection.id]: (prev[sourceSection.id] || []).map((item) =>
+            updatesByTaskId[item.id]
+              ? attachTaskPayload({
+                  ...item,
+                  ...updatesByTaskId[item.id].updatedTask,
+                  description:
+                    updatesByTaskId[item.id].updatedTask?.description ??
+                    updatesByTaskId[item.id].nextDescription,
+                })
+              : item,
+          ),
+        }));
+        setSelectFieldMenu(null);
+        setSelectColorMenu(null);
+        setSelectLinkMenu(null);
+      } catch (updateError) {
+        console.error('Erro ao aplicar opcao select:', updateError);
+        alert('Erro ao atualizar tarefa.');
+      }
+      return;
+    }
+
+    const targetSection = sections.find((item) => item.id === linkedSectionId);
+    if (!targetSection) {
+      alert('A secao vinculada nao existe mais.');
+      return;
+    }
+
+    try {
+      let targetColumns = normalizeTaskColumns(sectionMetaById[targetSection.id]?.taskColumns || []);
+      let targetColumnsChanged = false;
+      const sourceToTargetColumnMap = {};
+
+      sourceColumns.forEach((sourceColumnItem) => {
+        const found = targetColumns.find(
+          (targetColumnItem) =>
+            targetColumnItem.type === sourceColumnItem.type &&
+            targetColumnItem.name.trim().toLowerCase() === sourceColumnItem.name.trim().toLowerCase(),
+        );
+
+        if (found) {
+          sourceToTargetColumnMap[sourceColumnItem.id] = found.id;
+          return;
+        }
+
+        const createdColumn = {
+          id: createGeneratedId('col'),
+          name: sourceColumnItem.name,
+          type: sourceColumnItem.type,
+          options:
+            sourceColumnItem.type === 'select'
+              ? cloneSelectOptions(sourceColumnItem.options, true)
+              : undefined,
+        };
+        targetColumns = [...targetColumns, createdColumn];
+        targetColumnsChanged = true;
+        sourceToTargetColumnMap[sourceColumnItem.id] = createdColumn.id;
+      });
+
+      const selectOptionIdMapBySourceColumn = {};
+      sourceColumns
+        .filter((sourceColumnItem) => sourceColumnItem.type === 'select')
+        .forEach((sourceColumnItem) => {
+          const targetColumnId = sourceToTargetColumnMap[sourceColumnItem.id];
+          if (!targetColumnId) return;
+
+          const targetColumnIndex = targetColumns.findIndex((item) => item.id === targetColumnId);
+          if (targetColumnIndex === -1) return;
+
+          const sourceOptions = normalizeSelectOptions(sourceColumnItem.options, true);
+          const targetSelectColumn = targetColumns[targetColumnIndex];
+          const currentTargetOptions = normalizeSelectOptions(targetSelectColumn.options, true);
+          const nextTargetOptions = [...currentTargetOptions];
+          let targetOptionsChanged = false;
+
+          const optionIdMap = {};
+
+          sourceOptions.forEach((sourceOption) => {
+            const existingTargetIndex = nextTargetOptions.findIndex(
+              (targetOption) => targetOption.name === sourceOption.name,
+            );
+
+            if (existingTargetIndex === -1) {
+              const createdTargetOption = {
+                id: createGeneratedId('opt'),
+                name: sourceOption.name,
+                color: sourceOption.color || DEFAULT_SELECT_OPTION_COLORS[0],
+                linkSectionId: sourceOption.linkSectionId || '',
+              };
+              nextTargetOptions.push(createdTargetOption);
+              optionIdMap[sourceOption.id] = createdTargetOption.id;
+              targetOptionsChanged = true;
+              return;
+            }
+
+            const currentTargetOption = nextTargetOptions[existingTargetIndex];
+            const nextColor = sourceOption.color || currentTargetOption.color;
+            const nextLinkSectionId = sourceOption.linkSectionId || '';
+            optionIdMap[sourceOption.id] = currentTargetOption.id;
+
+            if (
+              currentTargetOption.color !== nextColor ||
+              (currentTargetOption.linkSectionId || '') !== nextLinkSectionId
+            ) {
+              nextTargetOptions[existingTargetIndex] = {
+                ...currentTargetOption,
+                color: nextColor,
+                linkSectionId: nextLinkSectionId,
+              };
+              targetOptionsChanged = true;
+            }
+          });
+
+          selectOptionIdMapBySourceColumn[sourceColumnItem.id] = optionIdMap;
+
+          if (targetOptionsChanged) {
+            targetColumns[targetColumnIndex] = {
+              ...targetSelectColumn,
+              options: nextTargetOptions,
+            };
+            targetColumnsChanged = true;
+          }
+        });
+
+      if (targetColumnsChanged) {
+        await saveSectionTaskColumns(targetSection, targetColumns);
+      }
+
+      const sourceTaskIdsToMove = new Set(tasksToApply.map((item) => item.id));
+      const targetBaseList = tasks[targetSection.id] || [];
+
+      const movedTasks = await Promise.all(
+        tasksToApply.map(async (taskItem, index) => {
+          const payload = taskItem._taskPayload || parseTaskPayload(taskItem.description);
+          const nextSourceFields = {
+            ...(payload.fields || {}),
+            [sourceColumn.id]: selectedOption.id,
+          };
+          const remappedFields = {};
+          Object.entries(nextSourceFields).forEach(([sourceColumnId, rawValue]) => {
+            const sourceColumnItem = sourceColumns.find((item) => item.id === sourceColumnId);
+            const targetColumnId = sourceToTargetColumnMap[sourceColumnId];
+            if (!sourceColumnItem || !targetColumnId) return;
+
+            if (sourceColumnItem.type !== 'select') {
+              remappedFields[targetColumnId] = rawValue;
+              return;
+            }
+
+            const sourceOption = getSelectOptionByStoredValue(sourceColumnItem, rawValue);
+            if (!sourceOption) {
+              remappedFields[targetColumnId] = rawValue;
+              return;
+            }
+
+            const mappedOptionId = selectOptionIdMapBySourceColumn[sourceColumnId]?.[sourceOption.id];
+            if (mappedOptionId) {
+              remappedFields[targetColumnId] = mappedOptionId;
+              return;
+            }
+
+            const targetColumnIndex = targetColumns.findIndex((item) => item.id === targetColumnId);
+            if (targetColumnIndex === -1) {
+              remappedFields[targetColumnId] = rawValue;
+              return;
+            }
+
+            const fallbackTargetOptions = normalizeSelectOptions(
+              targetColumns[targetColumnIndex].options,
+              true,
+            );
+            const fallbackTargetOption = fallbackTargetOptions.find(
+              (targetOption) => targetOption.name === sourceOption.name,
+            );
+            remappedFields[targetColumnId] = fallbackTargetOption ? fallbackTargetOption.id : rawValue;
+          });
+
+          const nextDescription = serializeTaskPayload({
+            notes: payload.notes || '',
+            fields: remappedFields,
+          });
+
+          const targetOrderIndex = targetBaseList.length + index;
+          const updatedTask = await taskService.updateTask(taskItem.id, {
+            section_id: targetSection.id,
+            order_index: targetOrderIndex,
+            description: nextDescription,
+          });
+
+          return attachTaskPayload({
+            ...taskItem,
+            ...updatedTask,
+            section_id: targetSection.id,
+            order_index: targetOrderIndex,
+            description: updatedTask?.description ?? nextDescription,
+          });
+        }),
+      );
+
+      const sourceList = sourceSectionTasks
+        .filter((item) => !sourceTaskIdsToMove.has(item.id))
+        .map((item, index) => ({ ...item, order_index: index }));
+      const targetList = [
+        ...targetBaseList,
+        ...movedTasks,
+      ];
+      const nextTaskMap = {
+        ...tasks,
+        [sourceSection.id]: sourceList,
+        [targetSection.id]: targetList,
+      };
+
+      setTasks(nextTaskMap);
+      await persistTaskOrder(nextTaskMap, [sourceSection.id, targetSection.id]);
+
+      setSelectedTasks((prev) => {
+        const prevSourceSelection = prev[sourceSection.id] || {};
+        const movedSelectedIds = tasksToApply
+          .map((taskItem) => taskItem.id)
+          .filter((taskId) => Boolean(prevSourceSelection[taskId]));
+        if (movedSelectedIds.length === 0) return prev;
+
+        const nextSourceSelection = { ...prevSourceSelection };
+        movedSelectedIds.forEach((taskId) => {
+          delete nextSourceSelection[taskId];
+        });
+        const next = { ...prev };
+
+        if (Object.keys(nextSourceSelection).length === 0) {
+          delete next[sourceSection.id];
+        } else {
+          next[sourceSection.id] = nextSourceSelection;
+        }
+
+        const nextTargetSelection = {
+          ...(next[targetSection.id] || {}),
+        };
+        movedSelectedIds.forEach((taskId) => {
+          nextTargetSelection[taskId] = true;
+        });
+        next[targetSection.id] = nextTargetSelection;
+        return next;
+      });
+
+      setSelectFieldMenu(null);
+      setSelectColorMenu(null);
+      setSelectLinkMenu(null);
+    } catch (transferError) {
+      console.error('Erro ao transferir tarefa via select:', transferError);
+      alert('Nao foi possivel aplicar essa opcao na tarefa.');
+    }
+  };
+
+  const toggleSectionActionsMenu = (event, sectionId) => {
+    event.stopPropagation();
+    const triggerRect = event.currentTarget.getBoundingClientRect();
+    const popupWidthEstimate = 200;
+    const left = Math.max(12, Math.min(triggerRect.left - 8, window.innerWidth - popupWidthEstimate - 12));
+    const top = triggerRect.bottom + 6;
+
+    setSectionActionsMenu((prev) =>
+      prev?.sectionId === sectionId ? null : { sectionId, top, left },
+    );
+  };
+
   const handleOpenDeleteModal = (section) => {
+    setSectionActionsMenu(null);
     setDeletingSection(section);
     setShowDeleteSectionModal(true);
+  };
+
+  const handleDuplicateSection = async (section) => {
+    try {
+      const sourceMeta = sectionMetaById[section.id] || DEFAULT_SECTION_META;
+      const normalizedMeta = {
+        ...sourceMeta,
+        taskColumns: normalizeTaskColumns(sourceMeta.taskColumns),
+      };
+      const existingNames = new Set(
+        sections.map((item) => normalizeSectionNameKey(item.name)),
+      );
+      const duplicatedName = buildDuplicatedSectionName(section.name, existingNames);
+
+      const createdSection = await sectionService.createSection({
+        name: duplicatedName,
+        work_area_id: workAreaId,
+        description: serializeSectionMeta(normalizedMeta),
+      });
+
+      const sourceTasks = sortByOrder(tasks[section.id] || []);
+      const duplicatedTaskResponses = await Promise.all(
+        sourceTasks.map((task, index) =>
+          taskService.createTask({
+            title: task.title,
+            description: task.description || null,
+            section_id: createdSection.id,
+            order_index: index,
+          }),
+        ),
+      );
+
+      const duplicatedTasks = duplicatedTaskResponses.map((task, index) => ({
+        ...attachTaskPayload(task),
+        section_id: createdSection.id,
+        order_index: Number.isFinite(Number(task.order_index)) ? Number(task.order_index) : index,
+      }));
+
+      setSections((prev) =>
+        sortByOrder([
+          ...prev,
+          {
+            ...createdSection,
+            description: createdSection.description || serializeSectionMeta(normalizedMeta),
+          },
+        ]),
+      );
+      setTasks((prev) => ({
+        ...prev,
+        [createdSection.id]: duplicatedTasks,
+      }));
+      setSectionActionsMenu(null);
+    } catch (duplicateError) {
+      console.error('Erro ao duplicar secao:', duplicateError);
+      alert(duplicateError?.response?.data?.message || 'Erro ao duplicar secao. Tente novamente.');
+    }
+  };
+
+  const handleNormalizeSectionWidths = (sourceSection) => {
+    if (!sourceSection) return;
+
+    const sourceColumns = [PRIMARY_COLUMN_KEY, ...getTaskColumnsForSection(sourceSection.id).map((column) => column.id)];
+    if (sourceColumns.length === 0) return;
+
+    setColumnWidthsBySection((prev) => {
+      const next = { ...prev };
+
+      sections.forEach((targetSection) => {
+        if (targetSection.id === sourceSection.id) return;
+
+        const targetColumns = [
+          PRIMARY_COLUMN_KEY,
+          ...getTaskColumnsForSection(targetSection.id).map((column) => column.id),
+        ];
+
+        const sharedColumnsCount = Math.min(sourceColumns.length, targetColumns.length);
+        if (sharedColumnsCount <= 0) return;
+
+        const currentTargetWidthMap = next[targetSection.id] || {};
+        const targetWidthMap = { ...currentTargetWidthMap };
+
+        for (let index = 0; index < sharedColumnsCount; index += 1) {
+          const sourceColumnKey = sourceColumns[index];
+          const targetColumnKey = targetColumns[index];
+          const sourceIsPrimaryColumn = sourceColumnKey === PRIMARY_COLUMN_KEY;
+          const sourceWidth = getColumnWidth(
+            sourceSection.id,
+            sourceColumnKey,
+            sourceIsPrimaryColumn,
+          );
+
+          if (Number.isFinite(sourceWidth)) {
+            targetWidthMap[targetColumnKey] = Math.max(48, Math.round(sourceWidth));
+          }
+        }
+
+        next[targetSection.id] = targetWidthMap;
+      });
+
+      return next;
+    });
+
+    setSectionActionsMenu(null);
   };
 
   const handleDeleteSection = async () => {
@@ -840,7 +2321,31 @@ const WorkAreaPage = () => {
       });
       setColumnTypeMenu((prev) => (prev?.sectionId === deletingSection.id ? null : prev));
       setColumnActionsMenu((prev) => (prev?.sectionId === deletingSection.id ? null : prev));
+      setSectionActionsMenu((prev) => (prev?.sectionId === deletingSection.id ? null : prev));
+      setDraggingSection((prev) => (prev?.sectionId === deletingSection.id ? null : prev));
+      setDragOverSectionTargetId((prev) => (prev === deletingSection.id ? null : prev));
+      setTaskSortBySection((prev) => {
+        if (!prev[deletingSection.id]) return prev;
+        const next = { ...prev };
+        delete next[deletingSection.id];
+        return next;
+      });
+      setDraggingColumn((prev) => (prev?.sectionId === deletingSection.id ? null : prev));
+      setDragOverColumn((prev) => (prev?.sectionId === deletingSection.id ? null : prev));
+      setSelectFieldMenu((prev) => (prev?.sectionId === deletingSection.id ? null : prev));
+      setSelectColorMenu(null);
+      setSelectLinkMenu(null);
+      setEditingSelectOption(null);
+      setCreatingSelectOption(false);
+      setNewSelectOptionName('');
       setEditingColumnInline((prev) => (prev?.sectionId === deletingSection.id ? null : prev));
+      setEditingTaskField((prev) => (prev?.sectionId === deletingSection.id ? null : prev));
+      setCollapsedSections((prev) => {
+        if (!(deletingSection.id in prev)) return prev;
+        const next = { ...prev };
+        delete next[deletingSection.id];
+        return next;
+      });
       setDeletingColumnTarget((prev) => (prev?.sectionId === deletingSection.id ? null : prev));
       setColumnWidthsBySection((prev) => {
         if (!(deletingSection.id in prev)) return prev;
@@ -995,10 +2500,19 @@ const WorkAreaPage = () => {
 
       for (const [sectionId, selectedInSection] of Object.entries(grouped)) {
         const existingSectionTasks = tasks[sectionId] || [];
+        const usedTitles = new Set(
+          existingSectionTasks.map((task) => String(task.title || '').trim().toLowerCase()),
+        );
+        const duplicateBatch = selectedInSection.map((task) => {
+          const duplicatedTitle = buildDuplicatedTaskTitle(task.title, usedTitles);
+          usedTitles.add(duplicatedTitle.toLowerCase());
+          return { task, duplicatedTitle };
+        });
+
         const created = await Promise.all(
-          selectedInSection.map((task, index) =>
+          duplicateBatch.map(({ task, duplicatedTitle }, index) =>
             taskService.createTask({
-              title: task.title,
+              title: duplicatedTitle,
               description: task.description || null,
               section_id: sectionId,
               order_index: existingSectionTasks.length + index,
@@ -1033,10 +2547,8 @@ const WorkAreaPage = () => {
   const handleDeleteSelectedTasks = async () => {
     const grouped = getSelectedTasksGroupedBySection();
     const entries = Object.entries(grouped);
-    if (entries.length === 0) return;
-
-    const count = entries.reduce((sum, [, selectedInSection]) => sum + selectedInSection.length, 0);
-    if (!window.confirm(`Excluir ${count} tarefa(s) selecionada(s)?`)) {
+    if (entries.length === 0) {
+      setShowDeleteTasksModal(false);
       return;
     }
 
@@ -1057,6 +2569,7 @@ const WorkAreaPage = () => {
       });
 
       clearTaskSelection();
+      setShowDeleteTasksModal(false);
     } catch (deleteError) {
       console.error('Erro ao excluir tarefas selecionadas:', deleteError);
       alert('Erro ao excluir tarefas selecionadas. Tente novamente.');
@@ -1084,33 +2597,123 @@ const WorkAreaPage = () => {
     }
   };
 
+  const beginInlineTaskFieldEdit = (task, sectionId, column, payload) => {
+    if (column.type === 'select') return;
+
+    const rawFieldValue = payload?.fields?.[column.id] || '';
+    const initialValue =
+      column.type === 'date'
+        ? normalizeDateCandidateToIso(rawFieldValue).value || ''
+        : column.type === 'currency'
+          ? formatCurrencyInputForTyping(rawFieldValue)
+        : rawFieldValue;
+
+    setEditingTaskField({
+      taskId: task.id,
+      sectionId,
+      columnId: column.id,
+      columnType: column.type,
+      value: initialValue,
+    });
+  };
+
+  const cancelInlineTaskFieldEdit = () => {
+    setEditingTaskField(null);
+  };
+
+  const saveInlineTaskFieldEdit = async () => {
+    if (!editingTaskField) return;
+
+    const { sectionId, taskId, columnId, columnType, value } = editingTaskField;
+    const targetTask = (tasks[sectionId] || []).find((task) => task.id === taskId);
+    if (!targetTask) {
+      setEditingTaskField(null);
+      return;
+    }
+
+    const normalized = normalizeTaskFieldInputValue(value, columnType);
+    if (!normalized.valid) {
+      alert(normalized.errorMessage || 'Valor invalido para esta coluna.');
+      return;
+    }
+
+    const payload = targetTask._taskPayload || parseTaskPayload(targetTask.description);
+    const previousValue = payload.fields?.[columnId] || '';
+    const nextValue = normalized.normalizedValue;
+
+    if (String(previousValue) === String(nextValue)) {
+      setEditingTaskField(null);
+      return;
+    }
+
+    const nextFields = { ...(payload.fields || {}) };
+    if (!nextValue) {
+      delete nextFields[columnId];
+    } else {
+      nextFields[columnId] = nextValue;
+    }
+
+    const nextDescription = serializeTaskPayload({
+      notes: payload.notes || '',
+      fields: nextFields,
+    });
+
+    try {
+      const updatedTask = await taskService.updateTask(taskId, { description: nextDescription });
+      setTasks((prev) => ({
+        ...prev,
+        [sectionId]: (prev[sectionId] || []).map((task) =>
+          task.id === taskId
+            ? attachTaskPayload({
+                ...task,
+                ...updatedTask,
+                description: updatedTask?.description ?? nextDescription,
+              })
+            : task,
+        ),
+      }));
+      setEditingTaskField(null);
+    } catch (updateError) {
+      console.error('Erro ao atualizar valor da coluna:', updateError);
+      alert('Erro ao atualizar valor da coluna. Tente novamente.');
+    }
+  };
+
   const beginInlineSectionEdit = (section) => {
     setEditingSectionId(section.id);
     setEditingSectionName(section.name);
   };
 
   const saveInlineSectionEdit = async (section) => {
-    const trimmed = editingSectionName.trim();
-    if (!trimmed || trimmed === section.name) {
+    const normalizedName = normalizeSectionName(editingSectionName);
+    const currentNormalizedName = normalizeSectionName(section.name);
+    if (!normalizedName || normalizedName === currentNormalizedName) {
       setEditingSectionId(null);
       setEditingSectionName('');
+      return;
+    }
+
+    if (hasSectionNameConflict(sections, normalizedName, section.id)) {
+      alert('Ja existe uma secao com esse nome nesta area de trabalho.');
       return;
     }
 
     try {
       const meta = sectionMetaById[section.id] || DEFAULT_SECTION_META;
       const updated = await sectionService.updateSection(section.id, {
-        name: trimmed,
+        name: normalizedName,
         description: serializeSectionMeta(meta),
       });
       setSections((prev) =>
-        prev.map((item) => (item.id === section.id ? { ...item, ...updated, name: trimmed } : item)),
+        prev.map((item) =>
+          item.id === section.id ? { ...item, ...updated, name: normalizedName } : item,
+        ),
       );
       setEditingSectionId(null);
       setEditingSectionName('');
     } catch (updateError) {
       console.error('Erro ao atualizar secao:', updateError);
-      alert('Erro ao atualizar secao. Tente novamente.');
+      alert(updateError?.response?.data?.message || 'Erro ao atualizar secao. Tente novamente.');
     }
   };
 
@@ -1226,9 +2829,6 @@ const WorkAreaPage = () => {
     }
   };
 
-  const getColumnTypeLabel = (type) =>
-    COLUMN_TYPES.find((item) => item.value === type)?.label || 'Personalizado';
-
   if (loading) {
     return (
       <div className="loading-container">
@@ -1274,82 +2874,144 @@ const WorkAreaPage = () => {
       ) : (
         <div className="sections-grid">
           {sections.map((section) => {
-            const sectionTasks = tasks[section.id] || [];
+            const sectionTasks = sortedTasksBySection[section.id] || [];
             const meta = sectionMetaById[section.id] || DEFAULT_SECTION_META;
             const sectionAllSelected = areAllSectionTasksSelected(section.id);
+            const sectionCollapsed = isSectionCollapsed(section.id);
+            const primarySortDirection = getTaskSortState(section.id, PRIMARY_COLUMN_KEY);
+            const canDragSection = editingSectionId !== section.id;
+            const isDraggingThisSection = draggingSection?.sectionId === section.id;
+            const isSectionDropTarget =
+              !!draggingSection &&
+              draggingSection.sectionId !== section.id &&
+              dragOverSectionTargetId === section.id;
 
             return (
               <div
                 key={section.id}
-                className={`section-card ${dragOverSectionId === section.id ? 'drag-over' : ''}`}
+                className={`section-card ${dragOverSectionId === section.id ? 'drag-over' : ''} ${isSectionDropTarget ? 'section-drop-target' : ''} ${isDraggingThisSection ? 'section-is-dragging' : ''}`}
                 onDragOver={(event) => {
+                  if (draggingSection) {
+                    handleSectionDragOver(event, section.id);
+                    return;
+                  }
+
                   event.preventDefault();
                   setDragOverSectionId(section.id);
                 }}
                 onDrop={(event) => {
+                  if (draggingSection) {
+                    handleSectionDrop(event, section.id);
+                    return;
+                  }
+
                   event.preventDefault();
                   handleTaskDrop(section.id);
                 }}
                 onDragLeave={() => {
+                  if (draggingSection) {
+                    setDragOverSectionTargetId((prev) => (prev === section.id ? null : prev));
+                    return;
+                  }
+
                   setDragOverSectionId((prev) => (prev === section.id ? null : prev));
                 }}
               >
                 <div className="section-header">
-                  <div
-                    className="section-title-container"
-                    onClick={() => {
-                      if (editingSectionId === section.id) return;
-                      beginInlineSectionEdit(section);
-                    }}
-                    title="Clique para editar nome da secao"
-                  >
-                    {editingSectionId === section.id ? (
-                      <input
-                        type="text"
-                        value={editingSectionName}
-                        className="section-title-input"
-                        autoFocus
-                        onChange={(event) => setEditingSectionName(event.target.value)}
-                        onBlur={() => saveInlineSectionEdit(section)}
-                        onKeyDown={(event) => {
-                          event.stopPropagation();
-                          if (event.key === 'Enter') saveInlineSectionEdit(section);
-                          if (event.key === 'Escape') {
-                            setEditingSectionId(null);
-                            setEditingSectionName('');
-                          }
-                        }}
-                      />
-                    ) : (
-                      <h3 className="section-title">
-                        {section.name}
-                      </h3>
-                    )}
+                  <div className="section-title-container">
+                    <button
+                      type="button"
+                      className={`section-drag-handle ${canDragSection ? '' : 'is-disabled'}`}
+                      draggable={canDragSection}
+                      onMouseDown={(event) => event.stopPropagation()}
+                      onClick={(event) => event.stopPropagation()}
+                      onDragStart={(event) => handleSectionDragStart(event, section.id)}
+                      onDragEnd={handleSectionDragEnd}
+                      title={
+                        canDragSection
+                          ? 'Arraste para reordenar secao'
+                          : 'Finalize a edicao para arrastar'
+                      }
+                      aria-label={`Arrastar secao ${section.name}`}
+                    >
+                      <i className="fas fa-grip-vertical"></i>
+                    </button>
 
-                    <div className="section-meta-row">
-                      <span className="section-type-pill">{getColumnTypeLabel(meta.columnType)}</span>
-                      {meta.topic ? <span className="section-topic-pill">{meta.topic}</span> : null}
+                    <div
+                      className="section-title-content"
+                      onClick={() => {
+                        if (editingSectionId === section.id) return;
+                        beginInlineSectionEdit(section);
+                      }}
+                      title="Clique para editar nome da secao"
+                    >
+                      {editingSectionId === section.id ? (
+                        <input
+                          type="text"
+                          value={editingSectionName}
+                          className="section-title-input"
+                          autoFocus
+                          onChange={(event) => setEditingSectionName(event.target.value)}
+                          onBlur={() => saveInlineSectionEdit(section)}
+                          onKeyDown={(event) => {
+                            event.stopPropagation();
+                            if (event.key === 'Enter') saveInlineSectionEdit(section);
+                            if (event.key === 'Escape') {
+                              setEditingSectionId(null);
+                              setEditingSectionName('');
+                            }
+                          }}
+                        />
+                      ) : (
+                        <h3 className="section-title">
+                          {section.name}
+                        </h3>
+                      )}
+
+                      {meta.topic ? (
+                        <div className="section-meta-row">
+                          <span className="section-topic-pill">{meta.topic}</span>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 
                   <div className="section-action-icons">
                     <button
                       type="button"
-                      className="btn-icon btn-delete"
+                      className="btn-icon btn-section-toggle"
                       onClick={(event) => {
                         event.stopPropagation();
-                        handleOpenDeleteModal(section);
+                        toggleSectionCollapsed(section.id);
                       }}
-                      title="Excluir secao"
+                      title={sectionCollapsed ? 'Expandir tarefas' : 'Recolher tarefas'}
                     >
-                      <i className="fas fa-times"></i>
+                      <i className={`fas ${sectionCollapsed ? 'fa-chevron-down' : 'fa-chevron-up'}`}></i>
                     </button>
+                    <div
+                      className={`section-actions-menu-anchor ${
+                        sectionActionsMenu?.sectionId === section.id ? 'menu-open' : ''
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        className="btn-icon btn-section-settings"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleSectionActionsMenu(event, section.id);
+                        }}
+                        title="Opcoes da secao"
+                      >
+                        <i className="fas fa-gear"></i>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="tasks-list">
-                  {(() => {
-                    const customColumns = getTaskColumnsForSection(section.id);
+                {!sectionCollapsed ? (
+                  <div className="tasks-list">
+                    {(() => {
+                      const customColumns = getTaskColumnsForSection(section.id);
 
                     const renderAddColumnTrigger = () => (
                       <div className="column-add-menu-anchor">
@@ -1366,8 +3028,8 @@ const WorkAreaPage = () => {
                       </div>
                     );
 
-                    return (
-                      <div className="tasks-table-wrap">
+                      return (
+                        <div className="tasks-table-wrap">
                         <table className="tasks-table">
                           <thead>
                             <tr>
@@ -1385,7 +3047,21 @@ const WorkAreaPage = () => {
                                 style={getColumnSizeStyle(section.id, PRIMARY_COLUMN_KEY, true)}
                               >
                                 <div className="tasks-th-inline">
-                                  <span>{getPrimaryColumnName(section.id)}</span>
+                                  <button
+                                    type="button"
+                                    className={`column-sort-button ${primarySortDirection ? 'is-sorted' : ''}`}
+                                    onMouseDown={(event) => event.stopPropagation()}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      toggleTaskSort(section.id, PRIMARY_COLUMN_KEY, 'text');
+                                    }}
+                                    title={`Ordenar por ${getPrimaryColumnName(section.id)}`}
+                                  >
+                                    <span className="column-sort-label">{getPrimaryColumnName(section.id)}</span>
+                                    <i
+                                      className={`fas ${primarySortDirection === 'asc' ? 'fa-sort-up' : primarySortDirection === 'desc' ? 'fa-sort-down' : 'fa-sort'}`}
+                                    ></i>
+                                  </button>
                                 </div>
                                 <button
                                   type="button"
@@ -1397,71 +3073,138 @@ const WorkAreaPage = () => {
                                   title="Arraste para ajustar largura"
                                 />
                               </th>
-                              {customColumns.map((column) => (
-                                <th
-                                  key={column.id}
-                                  className={`tasks-th tasks-th-resizable ${resizingColumn?.sectionId === section.id && resizingColumn?.columnKey === column.id ? 'is-resizing' : ''}`}
-                                  style={getColumnSizeStyle(section.id, column.id)}
-                                >
-                                  <div className="tasks-th-inline">
-                                    <div
-                                      className={`column-actions-menu-anchor ${columnActionsMenu?.sectionId === section.id && columnActionsMenu?.columnId === column.id ? 'menu-open' : ''}`}
-                                    >
-                                      {editingColumnInline?.sectionId === section.id &&
-                                      editingColumnInline?.columnId === column.id ? (
-                                        <input
-                                          type="text"
-                                          value={editingColumnInline.name}
-                                          className="column-name-input"
-                                          autoFocus
-                                          onChange={(event) =>
-                                            setEditingColumnInline((prev) =>
-                                              prev ? { ...prev, name: event.target.value } : prev,
-                                            )
-                                          }
-                                          onBlur={handleSaveInlineColumnEdit}
-                                          onKeyDown={(event) => {
-                                            if (event.key === 'Enter') {
-                                              event.preventDefault();
-                                              event.currentTarget.blur();
-                                            }
-                                            if (event.key === 'Escape') {
-                                              event.preventDefault();
-                                              cancelInlineColumnEdit();
-                                            }
-                                          }}
-                                        />
-                                      ) : (
-                                        <>
-                                          <span className="column-name-button" title={column.name}>
-                                            {column.name}
-                                          </span>
-                                          <button
-                                            type="button"
-                                            className="column-settings-button"
-                                            onClick={(event) => {
-                                              toggleColumnActionsMenu(event, section.id, column.id);
-                                            }}
-                                            title="Opcoes da coluna"
-                                          >
-                                            <i className="fas fa-gear"></i>
-                                          </button>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    className="column-resizer-handle"
-                                    onMouseDown={(event) =>
-                                      handleColumnResizeStart(event, section.id, column.id)
+                              {customColumns.map((column) => {
+                                const canDragColumn = !(
+                                  editingColumnInline?.sectionId === section.id &&
+                                  editingColumnInline?.columnId === column.id
+                                );
+                                const isDraggingCurrentColumn =
+                                  draggingColumn?.sectionId === section.id &&
+                                  draggingColumn?.columnId === column.id;
+                                const isColumnDropTarget =
+                                  dragOverColumn?.sectionId === section.id &&
+                                  dragOverColumn?.targetColumnId === column.id;
+                                const dropMarkerClass = isColumnDropTarget
+                                  ? dragOverColumn.position === 'before'
+                                    ? 'column-drop-before'
+                                    : 'column-drop-after'
+                                  : '';
+                                const columnSortDirection = getTaskSortState(section.id, column.id);
+
+                                return (
+                                  <th
+                                    key={column.id}
+                                    onDragOver={(event) =>
+                                      handleColumnDragOver(event, section.id, column.id)
                                     }
-                                    aria-label={`Redimensionar coluna ${column.name}`}
-                                    title="Arraste para ajustar largura"
-                                  />
-                                </th>
-                              ))}
-                              <th className="tasks-th tasks-th-add-col">
+                                    onDrop={(event) => handleColumnDrop(event, section, column.id)}
+                                    className={`tasks-th tasks-th-resizable tasks-th-column ${resizingColumn?.sectionId === section.id && resizingColumn?.columnKey === column.id ? 'is-resizing' : ''} ${isDraggingCurrentColumn ? 'is-dragging' : ''} ${dropMarkerClass}`}
+                                    style={getColumnSizeStyle(section.id, column.id)}
+                                  >
+                                    <div className="tasks-th-inline">
+                                      <button
+                                        type="button"
+                                        className={`column-drag-handle ${canDragColumn ? '' : 'is-disabled'}`}
+                                        draggable={canDragColumn}
+                                        onMouseDown={(event) => event.stopPropagation()}
+                                        onClick={(event) => event.stopPropagation()}
+                                        onDragStart={(event) =>
+                                          handleColumnDragStart(event, section.id, column.id)
+                                        }
+                                        onDragEnd={handleColumnDragEnd}
+                                        title={
+                                          canDragColumn
+                                            ? 'Arraste para reordenar coluna'
+                                            : 'Finalize a edicao para arrastar'
+                                        }
+                                        aria-label={`Arrastar coluna ${column.name}`}
+                                      >
+                                        <i className="fas fa-grip"></i>
+                                      </button>
+                                      <div
+                                        className={`column-actions-menu-anchor ${columnActionsMenu?.sectionId === section.id && columnActionsMenu?.columnId === column.id ? 'menu-open' : ''}`}
+                                      >
+                                        {editingColumnInline?.sectionId === section.id &&
+                                        editingColumnInline?.columnId === column.id ? (
+                                          <input
+                                            type="text"
+                                            value={editingColumnInline.name}
+                                            className="column-name-input"
+                                            autoFocus
+                                            onChange={(event) =>
+                                              setEditingColumnInline((prev) =>
+                                                prev ? { ...prev, name: event.target.value } : prev,
+                                              )
+                                            }
+                                            onBlur={handleSaveInlineColumnEdit}
+                                            onKeyDown={(event) => {
+                                              if (event.key === 'Enter') {
+                                                event.preventDefault();
+                                                event.currentTarget.blur();
+                                              }
+                                              if (event.key === 'Escape') {
+                                                event.preventDefault();
+                                                cancelInlineColumnEdit();
+                                              }
+                                            }}
+                                          />
+                                        ) : (
+                                          <>
+                                            <button
+                                              type="button"
+                                              className={`column-sort-button column-name-button ${columnSortDirection ? 'is-sorted' : ''}`}
+                                              onMouseDown={(event) => event.stopPropagation()}
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                toggleTaskSort(section.id, column.id, column.type);
+                                              }}
+                                              title={`Ordenar por ${column.name}`}
+                                            >
+                                              <span className="column-sort-label">{column.name}</span>
+                                              <i
+                                                className={`fas ${columnSortDirection === 'asc' ? 'fa-sort-up' : columnSortDirection === 'desc' ? 'fa-sort-down' : 'fa-sort'}`}
+                                              ></i>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="column-settings-button"
+                                              onClick={(event) => {
+                                                toggleColumnActionsMenu(event, section.id, column.id);
+                                              }}
+                                              title="Opcoes da coluna"
+                                            >
+                                              <i className="fas fa-gear"></i>
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="column-resizer-handle"
+                                      onMouseDown={(event) =>
+                                        handleColumnResizeStart(event, section.id, column.id)
+                                      }
+                                      aria-label={`Redimensionar coluna ${column.name}`}
+                                      title="Arraste para ajustar largura"
+                                    />
+                                  </th>
+                                );
+                              })}
+                              <th
+                                className={`tasks-th tasks-th-add-col ${dragOverColumn?.sectionId === section.id && dragOverColumn?.targetColumnId === '__end__' ? 'column-drop-end' : ''}`}
+                                onDragOver={(event) => {
+                                  if (!draggingColumn || draggingColumn.sectionId !== section.id) return;
+                                  event.preventDefault();
+                                  event.dataTransfer.dropEffect = 'move';
+                                  setDragOverColumn({
+                                    sectionId: section.id,
+                                    targetColumnId: '__end__',
+                                    position: 'after',
+                                  });
+                                }}
+                                onDrop={(event) => handleColumnDropToEnd(event, section)}
+                              >
                                 {renderAddColumnTrigger()}
                               </th>
                             </tr>
@@ -1473,10 +3216,14 @@ const WorkAreaPage = () => {
                                 return (
                                   <tr
                                     key={task.id}
-                                    draggable
+                                    draggable={!draggingSection}
                                     onDragStart={() => setDraggingTask({ taskId: task.id, sectionId: section.id })}
-                                    onDragOver={(event) => event.preventDefault()}
+                                    onDragOver={(event) => {
+                                      if (draggingSection) return;
+                                      event.preventDefault();
+                                    }}
                                     onDrop={(event) => {
+                                      if (draggingSection) return;
                                       event.preventDefault();
                                       handleTaskDrop(section.id, task.id);
                                     }}
@@ -1530,12 +3277,86 @@ const WorkAreaPage = () => {
                                     {customColumns.map((column) => (
                                       <td
                                         key={column.id}
-                                        className="tasks-td"
+                                        className={`tasks-td ${column.type === 'select' ? 'tasks-td-select' : ''}`}
                                         style={getColumnSizeStyle(section.id, column.id)}
                                       >
-                                        <span className="task-cell-value">
-                                          {formatTaskFieldValue(payload.fields?.[column.id], column.type)}
-                                        </span>
+                                        {column.type !== 'select' &&
+                                        editingTaskField?.sectionId === section.id &&
+                                        editingTaskField?.taskId === task.id &&
+                                        editingTaskField?.columnId === column.id ? (
+                                          <input
+                                            type={getInputTypeForField(column.type)}
+                                            className="task-cell-input"
+                                            value={editingTaskField.value}
+                                            autoFocus
+                                            inputMode={getInputModeForField(column.type)}
+                                            onChange={(event) =>
+                                              setEditingTaskField((prev) =>
+                                                prev
+                                                  ? {
+                                                      ...prev,
+                                                      value:
+                                                        prev.columnType === 'currency'
+                                                          ? formatCurrencyInputForTyping(event.target.value)
+                                                          : prev.columnType === 'number'
+                                                            ? sanitizeNumberInputForTyping(event.target.value)
+                                                            : event.target.value,
+                                                    }
+                                                  : prev,
+                                              )
+                                            }
+                                            onBlur={saveInlineTaskFieldEdit}
+                                            onKeyDown={(event) => {
+                                              if (event.key === 'Enter') {
+                                                event.preventDefault();
+                                                event.currentTarget.blur();
+                                              }
+                                              if (event.key === 'Escape') {
+                                                event.preventDefault();
+                                                cancelInlineTaskFieldEdit();
+                                              }
+                                            }}
+                                          />
+                                        ) : (
+                                          column.type === 'select' ? (
+                                            (() => {
+                                              const selectCell = getSelectCellPresentation(
+                                                column,
+                                                payload.fields?.[column.id],
+                                              );
+                                              return (
+                                                <span
+                                                  className={`task-cell-value task-cell-select ${selectCell.color ? 'is-filled' : ''}`}
+                                                  onClick={(event) =>
+                                                    openSelectFieldMenu(event, section.id, task.id, column.id)
+                                                  }
+                                                  title="Selecionar opcao"
+                                                  style={
+                                                    selectCell.color
+                                                      ? {
+                                                          backgroundColor: selectCell.color,
+                                                          color: '#1f2937',
+                                                          fontWeight: 600,
+                                                        }
+                                                      : undefined
+                                                  }
+                                                >
+                                                  {selectCell.label}
+                                                </span>
+                                              );
+                                            })()
+                                          ) : (
+                                            <span
+                                              className="task-cell-value task-cell-editable"
+                                              onClick={() =>
+                                                beginInlineTaskFieldEdit(task, section.id, column, payload)
+                                              }
+                                              title="Clique para editar"
+                                            >
+                                              {formatTaskFieldValue(payload.fields?.[column.id], column.type)}
+                                            </span>
+                                          )
+                                        )}
                                       </td>
                                     ))}
                                     <td className="tasks-td tasks-td-add-col"></td>
@@ -1547,34 +3368,36 @@ const WorkAreaPage = () => {
                             <tr className="tasks-tr-add">
                               <td className="tasks-td tasks-td-check"></td>
                               <td
-                                className="tasks-td"
+                                className="tasks-td tasks-td-add-primary"
                                 style={getColumnSizeStyle(section.id, PRIMARY_COLUMN_KEY, true)}
                               >
-                                <input
-                                  type="text"
-                                  value={inlineTaskDraftBySection[section.id] || ''}
-                                  onChange={(event) =>
-                                    handleInlineTaskDraftChange(section.id, event.target.value)
-                                  }
-                                  onBlur={() => handleInlineTaskCreate(section.id)}
-                                  onKeyDown={(event) => {
-                                    if (event.key === 'Enter') {
-                                      event.preventDefault();
-                                      event.currentTarget.blur();
+                                <div className="tasks-add-input-shell">
+                                  <input
+                                    type="text"
+                                    value={inlineTaskDraftBySection[section.id] || ''}
+                                    onChange={(event) =>
+                                      handleInlineTaskDraftChange(section.id, event.target.value)
                                     }
-                                    if (event.key === 'Escape') {
-                                      event.preventDefault();
-                                      setInlineTaskDraftBySection((prev) => ({
-                                        ...prev,
-                                        [section.id]: '',
-                                      }));
-                                      event.currentTarget.blur();
-                                    }
-                                  }}
-                                  className="tasks-add-input"
-                                  placeholder="Adicionar tarefa"
-                                  disabled={creatingInlineTaskBySection[section.id]}
-                                />
+                                    onBlur={() => handleInlineTaskCreate(section.id)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === 'Enter') {
+                                        event.preventDefault();
+                                        event.currentTarget.blur();
+                                      }
+                                      if (event.key === 'Escape') {
+                                        event.preventDefault();
+                                        setInlineTaskDraftBySection((prev) => ({
+                                          ...prev,
+                                          [section.id]: '',
+                                        }));
+                                        event.currentTarget.blur();
+                                      }
+                                    }}
+                                    className="tasks-add-input"
+                                    placeholder="+ Adicionar tarefa"
+                                    disabled={creatingInlineTaskBySection[section.id]}
+                                  />
+                                </div>
                               </td>
                               {customColumns.map((column) => (
                                 <td
@@ -1588,9 +3411,10 @@ const WorkAreaPage = () => {
                           </tbody>
                         </table>
                       </div>
-                    );
-                  })()}
-                </div>
+                      );
+                    })()}
+                  </div>
+                ) : null}
               </div>
             );
           })}
@@ -1600,11 +3424,12 @@ const WorkAreaPage = () => {
             className="section-card section-card-create"
             onClick={() => setShowSectionModal(true)}
           >
-            <span className="create-section-icon">
-              <i className="fas fa-plus"></i>
+            <span className="create-section-content">
+              <span className="create-section-icon">
+                <i className="fas fa-plus"></i>
+              </span>
+              <strong>Criar nova seção</strong>
             </span>
-            <strong>Criar nova secao</strong>
-            <span>Adicione outra coluna para organizar tarefas.</span>
           </button>
         </div>
       )}
@@ -1623,11 +3448,82 @@ const WorkAreaPage = () => {
               <button type="button" className="btn btn-outline btn-sm" onClick={handleDuplicateSelectedTasks}>
                 <i className="fas fa-copy"></i> Duplicar
               </button>
-              <button type="button" className="btn btn-danger btn-sm" onClick={handleDeleteSelectedTasks}>
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                onClick={handleOpenDeleteSelectedTasksModal}
+              >
                 <i className="fas fa-trash"></i> Excluir
               </button>
               <button type="button" className="btn-icon" onClick={clearTaskSelection} title="Limpar selecao">
                 <i className="fas fa-times"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {sectionActionsMenu && activeSectionMenuContext ? (
+        <div
+          className="section-actions-popup section-actions-popup-floating"
+          role="menu"
+          style={{
+            top: `${sectionActionsMenu.top}px`,
+            left: `${sectionActionsMenu.left}px`,
+          }}
+        >
+          <button
+            type="button"
+            className="section-actions-item"
+            onClick={() => handleNormalizeSectionWidths(activeSectionMenuContext)}
+          >
+            <i className="fas fa-ruler-horizontal"></i> Padronizar larguras
+          </button>
+          <button
+            type="button"
+            className="section-actions-item"
+            onClick={() => handleDuplicateSection(activeSectionMenuContext)}
+          >
+            <i className="fas fa-copy"></i> Duplicar secao
+          </button>
+          <button
+            type="button"
+            className="section-actions-item is-danger"
+            onClick={() => handleOpenDeleteModal(activeSectionMenuContext)}
+          >
+            <i className="fas fa-trash"></i> Excluir secao
+          </button>
+        </div>
+      ) : null}
+
+      {showDeleteTasksModal ? (
+        <div className="modal-overlay" onClick={closeDeleteSelectedTasksModal}>
+          <div className="modal task-delete-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Excluir Tarefas</h3>
+              <button type="button" className="btn-icon" onClick={closeDeleteSelectedTasksModal}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="modal-body task-delete-modal-body">
+              <div className="task-delete-modal-icon">
+                <i className="fas fa-trash"></i>
+              </div>
+              <p className="task-delete-modal-title">
+                {totalSelectedTasks === 1
+                  ? 'Excluir 1 tarefa selecionada?'
+                  : `Excluir ${totalSelectedTasks} tarefas selecionadas?`}
+              </p>
+              <p className="task-delete-modal-description">
+                Esta acao e permanente e remove as tarefas selecionadas de todas as secoes.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-outline" onClick={closeDeleteSelectedTasksModal}>
+                Cancelar
+              </button>
+              <button type="button" className="btn btn-danger" onClick={handleDeleteSelectedTasks}>
+                <i className="fas fa-trash"></i> Confirmar exclusao
               </button>
             </div>
           </div>
@@ -1751,6 +3647,241 @@ const WorkAreaPage = () => {
         </div>
       ) : null}
 
+      {selectFieldMenu && activeSelectFieldContext ? (
+        <div
+          className="select-options-popup select-options-popup-floating"
+          style={{
+            top: `${selectFieldMenu.top}px`,
+            left: `${selectFieldMenu.left}px`,
+          }}
+        >
+          <div className="select-options-popup-header">
+            <div className="select-options-popup-title">
+              <i className="fas fa-list"></i>
+              <span>Selecionar opcao</span>
+            </div>
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={() => {
+                setSelectFieldMenu(null);
+                setSelectColorMenu(null);
+                setSelectLinkMenu(null);
+                setEditingSelectOption(null);
+                setCreatingSelectOption(false);
+                setNewSelectOptionName('');
+              }}
+            >
+              <i className="fas fa-times"></i>
+            </button>
+          </div>
+
+          <div className="select-options-grid">
+            {activeSelectFieldContext.options.map((option) => {
+              const isSelected = activeSelectFieldContext.selectedValue === option.id;
+              const isEditing = editingSelectOption?.optionId === option.id;
+              const linkedSectionName = sections.find((item) => item.id === option.linkSectionId)?.name || '';
+
+              return (
+                <div
+                  key={option.id}
+                  className={`select-option-card ${isSelected ? 'is-selected' : ''}`}
+                  style={
+                    option.color
+                      ? {
+                          borderColor: option.color,
+                        }
+                      : undefined
+                  }
+                >
+                  <button
+                    type="button"
+                    className="select-option-main"
+                    style={option.color ? { backgroundColor: option.color } : undefined}
+                    onClick={() => {
+                      if (isEditing) return;
+                      handleSelectOptionApplyToTask(option.id);
+                    }}
+                    onDoubleClick={(event) => {
+                      event.stopPropagation();
+                      beginEditSelectOption(option);
+                    }}
+                  >
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        className="select-option-name-input"
+                        value={editingSelectOption.name}
+                        autoFocus
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={(event) =>
+                          setEditingSelectOption((prev) =>
+                            prev ? { ...prev, name: event.target.value } : prev,
+                          )
+                        }
+                        onBlur={saveEditedSelectOptionName}
+                        onKeyDown={(event) => {
+                          event.stopPropagation();
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            event.currentTarget.blur();
+                          }
+                          if (event.key === 'Escape') {
+                            event.preventDefault();
+                            setEditingSelectOption(null);
+                          }
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <span className="select-option-dot"></span>
+                        <span className="select-option-name">{option.name}</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div className="select-option-actions">
+                    <button
+                      type="button"
+                      className="btn-icon"
+                      title="Renomear opcao"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        beginEditSelectOption(option);
+                      }}
+                    >
+                      <i className="fas fa-pen"></i>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-icon"
+                      title="Escolher cor"
+                      onClick={(event) => openSelectColorMenu(event, option.id)}
+                    >
+                      <i className="fas fa-fill-drip"></i>
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn-icon ${option.linkSectionId ? 'is-linked' : ''}`}
+                      title={linkedSectionName ? `Vinculado: ${linkedSectionName}` : 'Vincular a secao'}
+                      onClick={(event) => openSelectLinkMenu(event, option.id)}
+                    >
+                      <i className="fas fa-link"></i>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="select-options-footer">
+            {creatingSelectOption ? (
+              <div className="select-options-create-row">
+                <input
+                  type="text"
+                  value={newSelectOptionName}
+                  className="select-option-name-input"
+                  autoFocus
+                  onChange={(event) => setNewSelectOptionName(event.target.value)}
+                  onBlur={saveCreatedSelectOption}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      event.currentTarget.blur();
+                    }
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      setCreatingSelectOption(false);
+                      setNewSelectOptionName('');
+                    }
+                  }}
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="select-options-add-btn"
+                onClick={beginCreateSelectOption}
+              >
+                <i className="fas fa-plus"></i> Adicionar nova opcao
+              </button>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {selectColorMenu && activeSelectFieldContext ? (
+        <div
+          className="select-options-color-popup"
+          style={{
+            top: `${selectColorMenu.top}px`,
+            left: `${selectColorMenu.left}px`,
+          }}
+        >
+          <div className="select-popup-subtitle">Escolha uma cor</div>
+          <div className="select-color-grid">
+            {DEFAULT_SELECT_OPTION_COLORS.map((color) => (
+              <button
+                key={color}
+                type="button"
+                className="select-color-btn"
+                style={{ backgroundColor: color }}
+                onClick={() => handleSelectOptionColorChange(selectColorMenu.optionId, color)}
+              ></button>
+            ))}
+          </div>
+          <div className="select-color-custom">
+            <span>Personalizada</span>
+            <input
+              type="color"
+              onChange={(event) =>
+                handleSelectOptionColorChange(selectColorMenu.optionId, event.target.value)
+              }
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {selectLinkMenu && activeSelectFieldContext ? (
+        <div
+          className="select-options-link-popup"
+          style={{
+            top: `${selectLinkMenu.top}px`,
+            left: `${selectLinkMenu.left}px`,
+          }}
+        >
+          <div className="select-popup-subtitle">Vincular a secao</div>
+          <button
+            type="button"
+            className="select-link-remove"
+            onClick={() => handleSelectOptionLinkChange(selectLinkMenu.optionId, '')}
+          >
+            <i className="fas fa-unlink"></i> Remover vinculo
+          </button>
+          <div className="select-link-list">
+            {sections.map((section) => {
+              const activeOption = activeSelectFieldContext.options.find(
+                (option) => option.id === selectLinkMenu.optionId,
+              );
+              const isLinked = activeOption?.linkSectionId === section.id;
+              return (
+                <button
+                  key={section.id}
+                  type="button"
+                  className={`select-link-item ${isLinked ? 'is-linked' : ''}`}
+                  onClick={() => handleSelectOptionLinkChange(selectLinkMenu.optionId, section.id)}
+                >
+                  <i className="fas fa-folder"></i>
+                  <span className="select-link-label">{section.name}</span>
+                  {isLinked ? <span className="select-link-tag">vinculado</span> : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
       {showSectionModal ? (
         <div className="modal-overlay">
           <div className="modal">
@@ -1780,6 +3911,9 @@ const WorkAreaPage = () => {
                   className="form-input"
                   autoFocus
                 />
+                {isNewSectionNameDuplicated ? (
+                  <p className="form-field-error">Ja existe uma secao com esse nome nesta area de trabalho.</p>
+                ) : null}
               </div>
             </div>
 
@@ -1798,7 +3932,7 @@ const WorkAreaPage = () => {
                 type="button"
                 className="btn btn-primary"
                 onClick={handleCreateSection}
-                disabled={!newSectionName.trim()}
+                disabled={!normalizedNewSectionName || isNewSectionNameDuplicated}
               >
                 Criar Secao
               </button>

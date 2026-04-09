@@ -5,9 +5,10 @@ import {
   Route,
   Routes,
   useLocation,
+  useNavigate,
 } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBars, faMoon, faSun } from '@fortawesome/free-solid-svg-icons';
+import { faArrowLeft, faBars } from '@fortawesome/free-solid-svg-icons';
 import Sidebar from './components/Sidebar/Sidebar';
 import UserMenu from './components/UserMenu/UserMenu';
 import HomePage from './pages/HomePage';
@@ -20,7 +21,6 @@ import GoogleCallbackPage from './pages/GoogleCallbackPage';
 import NotFoundPage from './pages/NotFoundPage';
 import { authService } from './services/auth';
 import { workAreaService } from './services/workAreaService';
-import { useTheme } from './context/ThemeContext';
 import './App.css';
 
 function getPageMeta(pathname) {
@@ -100,7 +100,7 @@ const ProtectedRoute = ({ children }) => {
 
 const MainLayout = ({ children }) => {
   const location = useLocation();
-  const { isDark, toggleTheme } = useTheme();
+  const navigate = useNavigate();
   const [sidebarExpanded, setSidebarExpanded] = useState(() => window.innerWidth >= 1200);
   const [sidebarPinned, setSidebarPinned] = useState(() => window.innerWidth >= 1200);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -211,6 +211,16 @@ const MainLayout = ({ children }) => {
           <div className="header-copy">
             {isWorkAreaPage ? (
               <div className="header-workarea-inline">
+                <button
+                  type="button"
+                  className="header-back-button"
+                  onClick={() => navigate('/')}
+                  title="Voltar para áreas de trabalho"
+                  aria-label="Voltar para áreas de trabalho"
+                >
+                  <FontAwesomeIcon icon={faArrowLeft} />
+                  <span>Voltar</span>
+                </button>
                 <span className="header-eyebrow">{pageMeta.eyebrow}</span>
                 <span className="header-workarea-name">{resolvedHeaderTitle}</span>
               </div>
@@ -238,19 +248,6 @@ const MainLayout = ({ children }) => {
             >
               <FontAwesomeIcon icon={faBars} />
             </button>
-
-            {!isWorkAreaPage ? (
-              <button
-                type="button"
-                className="header-theme-toggle"
-                onClick={toggleTheme}
-                aria-label={isDark ? 'Ativar modo claro' : 'Ativar modo noturno'}
-                title={isDark ? 'Ativar modo claro' : 'Ativar modo noturno'}
-              >
-                <FontAwesomeIcon icon={isDark ? faSun : faMoon} />
-                <span>{isDark ? 'Modo claro' : 'Modo noturno'}</span>
-              </button>
-            ) : null}
 
             <UserMenu />
           </div>
