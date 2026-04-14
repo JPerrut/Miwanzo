@@ -11,6 +11,7 @@ const workAreasRoutes = require('./routes/workAreas');
 const sectionsRoutes = require('./routes/sections');
 const tasksRoutes = require('./routes/tasks');
 const authMiddleware = require('./middleware/auth');
+const PasswordReset = require('./models/passwordReset.model');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -160,6 +161,8 @@ app.use('*', (req, res) => {
 async function checkDatabase() {
   try {
     await db.query('SELECT 1');
+    await PasswordReset.ensureTable();
+    await PasswordReset.deleteExpired();
     console.log('Banco de dados acessivel.');
   } catch (error) {
     console.error('Erro ao verificar banco:', error.message);

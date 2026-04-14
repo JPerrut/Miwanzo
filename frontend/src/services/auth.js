@@ -11,6 +11,16 @@ export const authService = {
     return response.data;
   },
 
+  async requestPasswordReset(payload) {
+    const response = await api.post('/auth/forgot-password/request', payload);
+    return response.data;
+  },
+
+  async confirmPasswordReset(payload) {
+    const response = await api.post('/auth/forgot-password/confirm', payload);
+    return response.data;
+  },
+
   async logout() {
     const response = await api.post('/auth/logout');
     return response.data;

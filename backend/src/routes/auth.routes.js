@@ -8,6 +8,8 @@ const authMiddleware = require('../middleware/auth');
 router.post('/register', authController.register);
 router.post('/login', authController.login);
 router.post('/logout', authController.logout);
+router.post('/forgot-password/request', authController.requestPasswordReset);
+router.post('/forgot-password/confirm', authController.confirmPasswordReset);
 router.get('/verify', authController.verifyToken);
 
 // Rotas protegidas

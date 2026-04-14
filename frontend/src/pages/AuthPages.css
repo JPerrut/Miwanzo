@@ -144,6 +144,32 @@
   color: var(--text-secondary);
 }
 
+.auth-page .auth-helper-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.auth-page .auth-helper-text {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.auth-page .auth-inline-link {
+  border: 0;
+  background: transparent;
+  color: var(--accent-color);
+  font-weight: 600;
+  padding: 0;
+}
+
+.auth-page .auth-code-input {
+  letter-spacing: 0.35em;
+  font-size: 1.02rem;
+}
+
 .auth-page .auth-error,
 .auth-page .auth-success {
   padding: 14px 16px;

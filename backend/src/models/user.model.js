@@ -95,6 +95,10 @@ const User = {
     await db.query(query, [token]);
   },
 
+  async deleteSessionsByUserId(userId) {
+    await db.query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
+  },
+
   async updatePassword(id, newPassword) {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     const query = 'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2';

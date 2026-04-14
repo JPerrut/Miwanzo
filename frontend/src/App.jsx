@@ -17,6 +17,7 @@ import TasksPage from './pages/TasksPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import GoogleCallbackPage from './pages/GoogleCallbackPage';
 import NotFoundPage from './pages/NotFoundPage';
 import { authService } from './services/auth';
@@ -108,6 +109,7 @@ const MainLayout = ({ children }) => {
   const isAuthPage =
     location.pathname === '/login' ||
     location.pathname === '/register' ||
+    location.pathname === '/forgot-password' ||
     location.pathname === '/google-callback';
 
   const pageMeta = useMemo(() => getPageMeta(location.pathname), [location.pathname]);
@@ -264,6 +266,7 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/google-callback" element={<GoogleCallbackPage />} />
 
       <Route
